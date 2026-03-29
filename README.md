@@ -35,6 +35,12 @@ Then start tmux or reload it:
 tmux source-file ~/.config/tmux/tmux.conf
 ```
 
+If you launched your lead coding agent outside tmux, start tmux first before using `switchboard` for agent-to-agent work:
+
+```bash
+tmux
+```
+
 ## Bridge Commands
 
 List panes:
@@ -85,6 +91,12 @@ Create a real multi-agent workspace in one shot:
 switchboard workspace --session agents --count 10 --cmd zsh
 ```
 
+`workspace` attaches by default, so the layout should come on screen immediately. If you want it created in the background instead:
+
+```bash
+switchboard workspace --session agents --count 10 --cmd zsh --detach
+```
+
 Scale beyond 10 automatically by spilling into additional tmux windows:
 
 ```bash
@@ -99,12 +111,6 @@ switchboard workspace --session agents --replace \
   --agent codex-01:codex \
   --agent codex-02:codex \
   --agent reviewer:claude
-```
-
-Attach immediately after creating the layout:
-
-```bash
-switchboard workspace --session agents --count 10 --cmd zsh --attach
 ```
 
 ## Targeting

@@ -18,8 +18,8 @@ Usage:
   $PROGRAM keys <target> <key...>
   $PROGRAM name <target> <title>
   $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
-  $PROGRAM workspace [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--per-window N] [--attach] [--replace]
-  $PROGRAM workspace [--session NAME] [--cwd DIR] [--width N] [--height N] [--per-window N] [--attach] [--replace] --agent title:command [--agent title:command ...]
+  $PROGRAM workspace [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace]
+  $PROGRAM workspace [--session NAME] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace] --agent title:command [--agent title:command ...]
   $PROGRAM focus <target>
   $PROGRAM doctor
 
@@ -325,7 +325,7 @@ cmd_workspace() {
   local session_name="swarm"
   local count=10
   local cwd="${PWD}"
-  local attach=0
+  local attach=1
   local replace=0
   local default_cmd="${SHELL:-zsh}"
   local width=240
@@ -343,6 +343,7 @@ cmd_workspace() {
       --height) height="$2"; shift 2 ;;
       --per-window) per_window="$2"; shift 2 ;;
       --attach) attach=1; shift ;;
+      --detach) attach=0; shift ;;
       --replace) replace=1; shift ;;
       --agent) specs+=("$2"); shift 2 ;;
       *) die "unknown option for workspace: $1" ;;
@@ -422,9 +423,18 @@ cmd_workspace() {
   if [[ "$attach" == "1" ]]; then
     if [[ -n "${TMUX:-}" ]]; then
       tmux_cmd switch-client -t "$session_name"
-    else
-      tmux_cmd attach-session -t "$session_name"
+      return
     fi
+    if [[ -t 0 && -t 1 ]]; then
+      tmux_cmd attach-session -t "$session_name"
+      return
+    fi
+    printf 'session=%s panes=%s windows=%s attach=%s\n' \
+      "$session_name" \
+      "${#specs[@]}" \
+      "$(tmux_cmd list-windows -t "$session_name" | wc -l | tr -d ' ')" \
+      "tmux attach-session -t $session_name"
+    printf 'workspace created, but no interactive terminal was available for auto-attach\n' >&2
     return
   fi
 
