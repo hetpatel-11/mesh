@@ -59,10 +59,12 @@ main() {
   mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
   install -m 0644 "$ROOT/tmux.conf" "$LAYER_CONF"
   install -m 0755 "$ROOT/bin/switchboard" "$BRIDGE_BIN"
+  touch "${INSTALL_ROOT}/local.conf"
   ensure_loader_block
 
   say "installed managed tmux layer to $LAYER_CONF"
   say "installed bridge to $BRIDGE_BIN"
+  say "local overrides live at ${INSTALL_ROOT}/local.conf"
 
   if tmux ls >/dev/null 2>&1; then
     tmux source-file "$MAIN_TMUX_CONF" || true
@@ -75,4 +77,3 @@ main() {
 }
 
 main "$@"
-

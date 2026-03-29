@@ -43,6 +43,12 @@ List panes:
 switchboard list
 ```
 
+Resolve a target before acting on it:
+
+```bash
+switchboard resolve codex
+```
+
 Read a pane before writing:
 
 ```bash
@@ -59,6 +65,12 @@ Force a write when you know what you are doing:
 
 ```bash
 switchboard ask --force codex "Continue from your last checkpoint."
+```
+
+Broadcast to every live pane except your own:
+
+```bash
+switchboard broadcast --force --except claude "Stand by for a new task."
 ```
 
 Spawn a worker pane to the right and name it:
@@ -98,4 +110,4 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - better pane addressing
 - a stronger read-before-write loop
 - built-in worker spawn helpers
-
+- a local override layer for custom tmux tweaks

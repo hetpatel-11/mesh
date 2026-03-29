@@ -10,9 +10,11 @@ usage() {
   cat <<EOF
 Usage:
   $PROGRAM list [--json]
+  $PROGRAM resolve <target>
   $PROGRAM read <target> [--lines N]
   $PROGRAM send [--force] <target> <text>
   $PROGRAM ask [--force] <target> <text>
+  $PROGRAM broadcast --force [--except <target>] <text>
   $PROGRAM keys <target> <key...>
   $PROGRAM name <target> <title>
   $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
@@ -163,6 +165,15 @@ cmd_read() {
   mark_read "$pane_id"
 }
 
+cmd_resolve() {
+  [[ $# -eq 1 ]] || die "resolve requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$1")"
+  tmux_cmd display-message -p -t "$pane_id" '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
+    | awk -F'|' '{ printf("{\"pane_id\":\"%s\",\"session\":\"%s\",\"address\":\"%s.%s\",\"title\":\"%s\",\"command\":\"%s\",\"cwd\":\"%s\"}\n", $1, $2, $3, $4, $5, $6, $7) }'
+}
+
 cmd_send_common() {
   local submit="$1"
   shift
@@ -188,6 +199,38 @@ cmd_send_common() {
   if [[ "$submit" == "1" ]]; then
     tmux_cmd send-keys -t "$pane_id" Enter
   fi
+}
+
+cmd_broadcast() {
+  local force=0
+  local except=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      --except) except="$2"; shift 2 ;;
+      * ) break ;;
+    esac
+  done
+  [[ "$force" == "1" ]] || die "broadcast requires --force"
+  [[ $# -gt 0 ]] || die "broadcast requires text"
+  require_tmux
+  local text="$*"
+  local except_pane=""
+  if [[ -n "$except" ]]; then
+    except_pane="$(resolve_target "$except")"
+  fi
+
+  local sent=0
+  local pane_id
+  while IFS= read -r pane_id; do
+    [[ -n "$pane_id" ]] || continue
+    [[ "$pane_id" == "$except_pane" ]] && continue
+    tmux_cmd send-keys -t "$pane_id" -l -- "$text"
+    tmux_cmd send-keys -t "$pane_id" Enter
+    sent=$((sent + 1))
+  done < <(pane_rows | cut -d'|' -f1)
+
+  printf 'sent to %s panes\n' "$sent"
 }
 
 cmd_keys() {
@@ -272,9 +315,11 @@ main() {
   shift || true
   case "$command" in
     list) cmd_list "$@" ;;
+    resolve) cmd_resolve "$@" ;;
     read) cmd_read "$@" ;;
     send) cmd_send_common 0 "$@" ;;
     ask) cmd_send_common 1 "$@" ;;
+    broadcast) cmd_broadcast "$@" ;;
     keys) cmd_keys "$@" ;;
     name) cmd_name "$@" ;;
     spawn) cmd_spawn "$@" ;;
