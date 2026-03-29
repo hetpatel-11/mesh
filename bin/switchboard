@@ -1,0 +1,288 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROGRAM="${0##*/}"
+STATE_DIR="${HOME}/.switchboard/state"
+READ_TTL="${SWITCHBOARD_READ_TTL:-120}"
+TMUX_ARGS_STRING="${SWITCHBOARD_TMUX_ARGS:-}"
+
+usage() {
+  cat <<EOF
+Usage:
+  $PROGRAM list [--json]
+  $PROGRAM read <target> [--lines N]
+  $PROGRAM send [--force] <target> <text>
+  $PROGRAM ask [--force] <target> <text>
+  $PROGRAM keys <target> <key...>
+  $PROGRAM name <target> <title>
+  $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
+  $PROGRAM focus <target>
+  $PROGRAM doctor
+
+Targets:
+  %pane_id | pane_title | session:window.pane
+EOF
+}
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+require_tmux() {
+  command -v tmux >/dev/null 2>&1 || die "tmux is required"
+  [[ -n "${TMUX:-}" ]] || tmux_cmd ls >/dev/null 2>&1 || die "tmux server is not running"
+}
+
+tmux_cmd() {
+  if [[ -n "$TMUX_ARGS_STRING" ]]; then
+    # shellcheck disable=SC2206
+    local extra=( $TMUX_ARGS_STRING )
+    tmux "${extra[@]}" "$@"
+  else
+    tmux "$@"
+  fi
+}
+
+ensure_state_dir() {
+  mkdir -p "$STATE_DIR"
+}
+
+mark_read() {
+  ensure_state_dir
+  local pane_id="$1"
+  date +%s >"$STATE_DIR/${pane_id#%}.read"
+}
+
+require_recent_read() {
+  local pane_id="$1"
+  local stamp_file="$STATE_DIR/${pane_id#%}.read"
+  [[ -f "$stamp_file" ]] || die "refusing blind write to $pane_id; read it first or pass --force"
+  local now
+  now="$(date +%s)"
+  local last
+  last="$(cat "$stamp_file")"
+  (( now - last <= READ_TTL )) || die "last read for $pane_id is older than ${READ_TTL}s; read it again or pass --force"
+}
+
+pane_rows() {
+  tmux_cmd list-panes -a -F '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}'
+}
+
+resolve_target() {
+  local target="$1"
+  [[ -n "$target" ]] || die "target is required"
+
+  if [[ "$target" == %* ]]; then
+    tmux_cmd display-message -p -t "$target" '#{pane_id}' >/dev/null 2>&1 || die "pane $target not found"
+    printf '%s\n' "$target"
+    return
+  fi
+
+  if [[ "$target" == *:*.* ]]; then
+    tmux_cmd display-message -p -t "$target" '#{pane_id}' 2>/dev/null || die "pane target $target not found"
+    return
+  fi
+
+  local matches
+  matches="$(pane_rows | awk -F'|' -v q="$target" '$5 == q { print $1 }')"
+  local count
+  count="$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')"
+  if [[ "$count" == "1" ]]; then
+    printf '%s\n' "$matches"
+    return
+  fi
+  if [[ "$count" -gt 1 ]]; then
+    die "pane title '$target' is ambiguous"
+  fi
+
+  die "could not resolve target '$target'"
+}
+
+format_list_table() {
+  pane_rows | while IFS='|' read -r pane_id session_name window_index pane_index pane_title current_command current_path; do
+    printf '%-6s %-18s %-6s %-18s %-16s %s\n' \
+      "$pane_id" \
+      "$session_name" \
+      "${window_index}.${pane_index}" \
+      "${pane_title:--}" \
+      "$current_command" \
+      "$current_path"
+  done
+}
+
+format_list_json() {
+  pane_rows | awk -F'|' '
+    BEGIN { print "["; first = 1 }
+    {
+      if (!first) print ","
+      first = 0
+      gsub(/\\/,"\\\\",$5); gsub(/"/,"\\\"",$5)
+      gsub(/\\/,"\\\\",$6); gsub(/"/,"\\\"",$6)
+      gsub(/\\/,"\\\\",$7); gsub(/"/,"\\\"",$7)
+      printf "  {\"pane_id\":\"%s\",\"session\":\"%s\",\"address\":\"%s.%s\",\"title\":\"%s\",\"command\":\"%s\",\"cwd\":\"%s\"}", $1, $2, $3, $4, $5, $6, $7
+    }
+    END { print "\n]" }
+  '
+}
+
+cmd_list() {
+  local json=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --json) json=1 ;;
+      *) die "unknown option for list: $1" ;;
+    esac
+    shift
+  done
+  require_tmux
+  if [[ "$json" == "1" ]]; then
+    format_list_json
+  else
+    printf '%-6s %-18s %-6s %-18s %-16s %s\n' "PANE" "SESSION" "ADDR" "TITLE" "CMD" "CWD"
+    format_list_table
+  fi
+}
+
+cmd_read() {
+  local target=""
+  local lines=80
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines) lines="$2"; shift ;;
+      -* ) die "unknown option for read: $1" ;;
+      * ) target="$1" ;;
+    esac
+    shift
+  done
+  [[ -n "$target" ]] || die "read requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  tmux_cmd capture-pane -p -J -t "$pane_id" -S "-$lines"
+  mark_read "$pane_id"
+}
+
+cmd_send_common() {
+  local submit="$1"
+  shift
+  local force=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      * ) break ;;
+    esac
+  done
+  local target="${1:-}"
+  shift || true
+  local text="${*:-}"
+  [[ -n "$target" ]] || die "target is required"
+  [[ -n "$text" ]] || die "text is required"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  if [[ "$force" != "1" ]]; then
+    require_recent_read "$pane_id"
+  fi
+  tmux_cmd send-keys -t "$pane_id" -l -- "$text"
+  if [[ "$submit" == "1" ]]; then
+    tmux_cmd send-keys -t "$pane_id" Enter
+  fi
+}
+
+cmd_keys() {
+  [[ $# -ge 2 ]] || die "keys requires a target and at least one key"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$1")"
+  shift
+  tmux_cmd send-keys -t "$pane_id" "$@"
+}
+
+cmd_name() {
+  [[ $# -eq 2 ]] || die "name requires a target and a title"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$1")"
+  tmux_cmd select-pane -t "$pane_id" -T "$2"
+}
+
+cmd_focus() {
+  [[ $# -eq 1 ]] || die "focus requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$1")"
+  tmux_cmd select-pane -t "$pane_id"
+}
+
+cmd_spawn() {
+  local title=""
+  local cwd="${PWD}"
+  local direction="right"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --title) title="$2"; shift 2 ;;
+      --cwd) cwd="$2"; shift 2 ;;
+      --right) direction="right"; shift ;;
+      --down) direction="down"; shift ;;
+      --) shift; break ;;
+      *) die "unknown option for spawn: $1" ;;
+    esac
+  done
+  [[ $# -gt 0 ]] || die "spawn requires a command after --"
+  require_tmux
+  local flag="-h"
+  [[ "$direction" == "down" ]] && flag="-v"
+  local pane_id
+  pane_id="$(tmux_cmd split-window -P -F '#{pane_id}' "$flag" -c "$cwd" "$*")"
+  if [[ -n "$title" ]]; then
+    tmux_cmd select-pane -t "$pane_id" -T "$title"
+  fi
+  tmux_cmd select-layout -E
+  printf '%s\n' "$pane_id"
+}
+
+cmd_doctor() {
+  printf 'program: %s\n' "$PROGRAM"
+  if command -v tmux >/dev/null 2>&1; then
+    printf 'tmux: %s\n' "$(command -v tmux)"
+  else
+    printf 'tmux: missing\n'
+  fi
+  if tmux_cmd ls >/dev/null 2>&1; then
+    printf 'server: running\n'
+  else
+    printf 'server: not running\n'
+  fi
+  if [[ -f "${HOME}/.config/tmux/tmux.conf" ]]; then
+    printf 'config: %s\n' "${HOME}/.config/tmux/tmux.conf"
+  else
+    printf 'config: missing\n'
+  fi
+  if [[ -f "${HOME}/.switchboard/tmux.conf" ]]; then
+    printf 'managed-layer: installed\n'
+  else
+    printf 'managed-layer: missing\n'
+  fi
+}
+
+main() {
+  local command="${1:-}"
+  [[ -n "$command" ]] || { usage; exit 1; }
+  shift || true
+  case "$command" in
+    list) cmd_list "$@" ;;
+    read) cmd_read "$@" ;;
+    send) cmd_send_common 0 "$@" ;;
+    ask) cmd_send_common 1 "$@" ;;
+    keys) cmd_keys "$@" ;;
+    name) cmd_name "$@" ;;
+    spawn) cmd_spawn "$@" ;;
+    focus) cmd_focus "$@" ;;
+    doctor) cmd_doctor ;;
+    help|-h|--help) usage ;;
+    *) die "unknown command: $command" ;;
+  esac
+}
+
+main "$@"
