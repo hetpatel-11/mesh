@@ -18,6 +18,8 @@ Usage:
   $PROGRAM keys <target> <key...>
   $PROGRAM name <target> <title>
   $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
+  $PROGRAM swarm [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--attach] [--replace]
+  $PROGRAM swarm [--session NAME] [--cwd DIR] [--width N] [--height N] [--attach] [--replace] --agent title:command [--agent title:command ...]
   $PROGRAM focus <target>
   $PROGRAM doctor
 
@@ -69,6 +71,22 @@ require_recent_read() {
 
 pane_rows() {
   tmux_cmd list-panes -a -F '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}'
+}
+
+largest_pane_info() {
+  local target="$1"
+  tmux_cmd list-panes -t "$target" -F '#{pane_id}|#{pane_width}|#{pane_height}' \
+    | awk -F'|' '
+      BEGIN { best = ""; area = 0 }
+      {
+        current = $2 * $3
+        if (current > area) {
+          area = current
+          best = $0
+        }
+      }
+      END { print best }
+    '
 }
 
 resolve_target() {
@@ -285,6 +303,102 @@ cmd_spawn() {
   printf '%s\n' "$pane_id"
 }
 
+cmd_swarm() {
+  local session_name="swarm"
+  local count=10
+  local cwd="${PWD}"
+  local attach=0
+  local replace=0
+  local default_cmd="${SHELL:-zsh}"
+  local width=240
+  local height=70
+  local specs=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --session) session_name="$2"; shift 2 ;;
+      --count) count="$2"; shift 2 ;;
+      --cmd) default_cmd="$2"; shift 2 ;;
+      --cwd) cwd="$2"; shift 2 ;;
+      --width) width="$2"; shift 2 ;;
+      --height) height="$2"; shift 2 ;;
+      --attach) attach=1; shift ;;
+      --replace) replace=1; shift ;;
+      --agent) specs+=("$2"); shift 2 ;;
+      *) die "unknown option for swarm: $1" ;;
+    esac
+  done
+
+  command -v tmux >/dev/null 2>&1 || die "tmux is required"
+  [[ -n "$session_name" ]] || die "session name is required"
+  [[ "$count" =~ ^[0-9]+$ ]] || die "--count must be a positive integer"
+  (( count >= 1 )) || die "--count must be at least 1"
+  [[ "$width" =~ ^[0-9]+$ ]] || die "--width must be a positive integer"
+  [[ "$height" =~ ^[0-9]+$ ]] || die "--height must be a positive integer"
+  (( width >= 80 )) || die "--width must be at least 80"
+  (( height >= 24 )) || die "--height must be at least 24"
+
+  if [[ "${#specs[@]}" -eq 0 ]]; then
+    specs+=("lead:$default_cmd")
+    local i
+    for (( i = 2; i <= count; i++ )); do
+      specs+=("agent-$(printf '%02d' "$i"):$default_cmd")
+    done
+  fi
+
+  if tmux_cmd has-session -t "$session_name" >/dev/null 2>&1; then
+    if [[ "$replace" == "1" ]]; then
+      tmux_cmd kill-session -t "$session_name"
+    else
+      die "session '$session_name' already exists; pass --replace to recreate it"
+    fi
+  fi
+
+  local first=1
+  local pane_id=""
+  local spec title command
+  for spec in "${specs[@]}"; do
+    title="${spec%%:*}"
+    command="${spec#*:}"
+    [[ -n "$title" ]] || die "agent title cannot be empty"
+    [[ -n "$command" ]] || die "agent command cannot be empty"
+    if [[ "$first" == "1" ]]; then
+      pane_id="$(tmux_cmd new-session -d -P -F '#{pane_id}' -x "$width" -y "$height" -s "$session_name" -n swarm -c "$cwd" "$command")"
+      first=0
+    else
+      local info target_pane target_width target_height split_flag
+      info="$(largest_pane_info "$session_name")"
+      target_pane="${info%%|*}"
+      target_width="$(printf '%s' "$info" | cut -d'|' -f2)"
+      target_height="$(printf '%s' "$info" | cut -d'|' -f3)"
+      split_flag="-v"
+      if [[ "$target_width" -ge $(( target_height * 16 / 10 )) ]]; then
+        split_flag="-h"
+      fi
+      pane_id="$(tmux_cmd split-window -d -P -F '#{pane_id}' "$split_flag" -t "$target_pane" -c "$cwd" "$command")"
+    fi
+    tmux_cmd select-pane -t "$pane_id" -T "$title"
+  done
+
+  tmux_cmd select-layout -t "$session_name" tiled >/dev/null || true
+  tmux_cmd display-message -t "$session_name" "switchboard swarm ready: ${#specs[@]} panes"
+
+  if [[ "$attach" == "1" ]]; then
+    if [[ -n "${TMUX:-}" ]]; then
+      tmux_cmd switch-client -t "$session_name"
+    else
+      tmux_cmd attach-session -t "$session_name"
+    fi
+    return
+  fi
+
+  printf 'session=%s panes=%s attach=%s\n' "$session_name" "${#specs[@]}" "tmux attach-session -t $session_name"
+  tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
+    | while IFS='|' read -r pane_id pane_index pane_title pane_command pane_path; do
+        printf '%-6s %-6s %-16s %-16s %s\n' "$pane_id" "1.${pane_index}" "$pane_title" "$pane_command" "$pane_path"
+      done
+}
+
 cmd_doctor() {
   printf 'program: %s\n' "$PROGRAM"
   if command -v tmux >/dev/null 2>&1; then
@@ -323,6 +437,7 @@ main() {
     keys) cmd_keys "$@" ;;
     name) cmd_name "$@" ;;
     spawn) cmd_spawn "$@" ;;
+    swarm) cmd_swarm "$@" ;;
     focus) cmd_focus "$@" ;;
     doctor) cmd_doctor ;;
     help|-h|--help) usage ;;
