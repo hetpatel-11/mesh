@@ -18,8 +18,8 @@ Usage:
   $PROGRAM keys <target> <key...>
   $PROGRAM name <target> <title>
   $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
-  $PROGRAM swarm [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--attach] [--replace]
-  $PROGRAM swarm [--session NAME] [--cwd DIR] [--width N] [--height N] [--attach] [--replace] --agent title:command [--agent title:command ...]
+  $PROGRAM workspace [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--per-window N] [--attach] [--replace]
+  $PROGRAM workspace [--session NAME] [--cwd DIR] [--width N] [--height N] [--per-window N] [--attach] [--replace] --agent title:command [--agent title:command ...]
   $PROGRAM focus <target>
   $PROGRAM doctor
 
@@ -70,7 +70,7 @@ require_recent_read() {
 }
 
 pane_rows() {
-  tmux_cmd list-panes -a -F '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}'
+  tmux_cmd list-panes -a -F '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}'
 }
 
 largest_pane_info() {
@@ -303,7 +303,25 @@ cmd_spawn() {
   printf '%s\n' "$pane_id"
 }
 
-cmd_swarm() {
+window_pane_count() {
+  local target="$1"
+  tmux_cmd list-panes -t "$target" -F '#{pane_id}' | sed '/^$/d' | wc -l | tr -d ' '
+}
+
+current_window_id() {
+  local target="$1"
+  tmux_cmd display-message -p -t "$target" '#{window_id}'
+}
+
+create_workspace_window() {
+  local session_name="$1"
+  local window_name="$2"
+  local cwd="$3"
+  local command="$4"
+  tmux_cmd new-window -d -P -F '#{window_id}' -t "$session_name" -n "$window_name" -c "$cwd" "$command"
+}
+
+cmd_workspace() {
   local session_name="swarm"
   local count=10
   local cwd="${PWD}"
@@ -312,6 +330,7 @@ cmd_swarm() {
   local default_cmd="${SHELL:-zsh}"
   local width=240
   local height=70
+  local per_window=10
   local specs=()
 
   while [[ $# -gt 0 ]]; do
@@ -322,10 +341,11 @@ cmd_swarm() {
       --cwd) cwd="$2"; shift 2 ;;
       --width) width="$2"; shift 2 ;;
       --height) height="$2"; shift 2 ;;
+      --per-window) per_window="$2"; shift 2 ;;
       --attach) attach=1; shift ;;
       --replace) replace=1; shift ;;
       --agent) specs+=("$2"); shift 2 ;;
-      *) die "unknown option for swarm: $1" ;;
+      *) die "unknown option for workspace: $1" ;;
     esac
   done
 
@@ -335,8 +355,10 @@ cmd_swarm() {
   (( count >= 1 )) || die "--count must be at least 1"
   [[ "$width" =~ ^[0-9]+$ ]] || die "--width must be a positive integer"
   [[ "$height" =~ ^[0-9]+$ ]] || die "--height must be a positive integer"
+  [[ "$per_window" =~ ^[0-9]+$ ]] || die "--per-window must be a positive integer"
   (( width >= 80 )) || die "--width must be at least 80"
   (( height >= 24 )) || die "--height must be at least 24"
+  (( per_window >= 2 )) || die "--per-window must be at least 2"
 
   if [[ "${#specs[@]}" -eq 0 ]]; then
     specs+=("lead:$default_cmd")
@@ -356,18 +378,27 @@ cmd_swarm() {
 
   local first=1
   local pane_id=""
+  local window_target=""
+  local window_number=1
   local spec title command
   for spec in "${specs[@]}"; do
     title="${spec%%:*}"
     command="${spec#*:}"
     [[ -n "$title" ]] || die "agent title cannot be empty"
     [[ -n "$command" ]] || die "agent command cannot be empty"
+
     if [[ "$first" == "1" ]]; then
       pane_id="$(tmux_cmd new-session -d -P -F '#{pane_id}' -x "$width" -y "$height" -s "$session_name" -n swarm -c "$cwd" "$command")"
+      window_target="$(current_window_id "$pane_id")"
       first=0
+      window_number=1
+    elif [[ "$(window_pane_count "$window_target")" -ge "$per_window" ]]; then
+      window_number=$((window_number + 1))
+      window_target="$(create_workspace_window "$session_name" "work-${window_number}" "$cwd" "$command")"
+      pane_id="$(tmux_cmd list-panes -t "$window_target" -F '#{pane_id}' | head -n 1)"
     else
       local info target_pane target_width target_height split_flag
-      info="$(largest_pane_info "$session_name")"
+      info="$(largest_pane_info "$window_target")"
       target_pane="${info%%|*}"
       target_width="$(printf '%s' "$info" | cut -d'|' -f2)"
       target_height="$(printf '%s' "$info" | cut -d'|' -f3)"
@@ -380,8 +411,13 @@ cmd_swarm() {
     tmux_cmd select-pane -t "$pane_id" -T "$title"
   done
 
-  tmux_cmd select-layout -t "$session_name" tiled >/dev/null || true
-  tmux_cmd display-message -t "$session_name" "switchboard swarm ready: ${#specs[@]} panes"
+  local window_id
+  while IFS= read -r window_id; do
+    [[ -n "$window_id" ]] || continue
+    tmux_cmd select-layout -t "$window_id" tiled >/dev/null || true
+  done < <(tmux_cmd list-windows -t "$session_name" -F '#{window_id}')
+
+  tmux_cmd display-message -t "$session_name" "switchboard workspace ready: ${#specs[@]} panes"
 
   if [[ "$attach" == "1" ]]; then
     if [[ -n "${TMUX:-}" ]]; then
@@ -392,10 +428,14 @@ cmd_swarm() {
     return
   fi
 
-  printf 'session=%s panes=%s attach=%s\n' "$session_name" "${#specs[@]}" "tmux attach-session -t $session_name"
-  tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{pane_index}|#{pane_title}|#{pane_current_command}|#{pane_current_path}' \
-    | while IFS='|' read -r pane_id pane_index pane_title pane_command pane_path; do
-        printf '%-6s %-6s %-16s %-16s %s\n' "$pane_id" "1.${pane_index}" "$pane_title" "$pane_command" "$pane_path"
+  printf 'session=%s panes=%s windows=%s attach=%s\n' \
+    "$session_name" \
+    "${#specs[@]}" \
+    "$(tmux_cmd list-windows -t "$session_name" | wc -l | tr -d ' ')" \
+    "tmux attach-session -t $session_name"
+  tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}' \
+    | while IFS='|' read -r pane_id window_index pane_index pane_title pane_command pane_path; do
+        printf '%-6s %-6s %-16s %-16s %s\n' "$pane_id" "${window_index}.${pane_index}" "$pane_title" "$pane_command" "$pane_path"
       done
 }
 
@@ -437,7 +477,7 @@ main() {
     keys) cmd_keys "$@" ;;
     name) cmd_name "$@" ;;
     spawn) cmd_spawn "$@" ;;
-    swarm) cmd_swarm "$@" ;;
+    workspace|swarm) cmd_workspace "$@" ;;
     focus) cmd_focus "$@" ;;
     doctor) cmd_doctor ;;
     help|-h|--help) usage ;;

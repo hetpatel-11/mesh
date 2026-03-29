@@ -14,5 +14,5 @@ Rules:
 - Read before writing unless you intentionally use `--force`.
 - Use pane titles like `claude`, `codex`, or `reviewer` so targets stay stable.
 - Prefer `switchboard spawn --title <name> -- <command>` when starting a new worker.
-- For demos or dense layouts, use `switchboard swarm --session <name> --count 10 --cmd zsh`.
+- For larger live layouts, use `switchboard workspace --session <name> --count <n> --cmd zsh`.
 - If a pane title is ambiguous, rename the panes instead of guessing.

@@ -79,22 +79,22 @@ Spawn a worker pane to the right and name it:
 switchboard spawn --title codex --cwd "$PWD" --right -- codex
 ```
 
-Create a dense 10-pane demo session in one shot:
+Create a real multi-agent workspace in one shot:
 
 ```bash
-switchboard swarm --session demo --count 10 --cmd zsh
+switchboard workspace --session agents --count 10 --cmd zsh
 ```
 
-If you want an even larger canvas for the tiled layout:
+Scale beyond 10 automatically by spilling into additional tmux windows:
 
 ```bash
-switchboard swarm --session demo --count 10 --cmd zsh --width 260 --height 80
+switchboard workspace --session agents --count 24 --cmd zsh --per-window 8
 ```
 
 Create a named multi-agent swarm with real commands:
 
 ```bash
-switchboard swarm --session agents --replace \
+switchboard workspace --session agents --replace \
   --agent lead:claude \
   --agent codex-01:codex \
   --agent codex-02:codex \
@@ -104,7 +104,7 @@ switchboard swarm --session agents --replace \
 Attach immediately after creating the layout:
 
 ```bash
-switchboard swarm --session demo --count 10 --cmd zsh --attach
+switchboard workspace --session agents --count 10 --cmd zsh --attach
 ```
 
 ## Targeting
@@ -139,4 +139,4 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - a stronger read-before-write loop
 - built-in worker spawn helpers
 - a local override layer for custom tmux tweaks
-- one-command swarm layouts for demos and live multi-agent sessions
+- one-command workspace layouts for live multi-agent sessions of arbitrary size
