@@ -43,7 +43,7 @@ For lead-driven agent work, start tmux first and launch your lead coding agent i
 tmux
 ```
 
-If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will stop and tell you to restart inside tmux instead of silently creating a hidden session.
+If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will try to open the new workspace in a visible Terminal window on macOS. That gets the panes on screen, but your current lead is still outside tmux. For the best lead-preserving behavior, start tmux first and launch the lead inside it.
 
 ## Bridge Commands
 
@@ -142,6 +142,8 @@ Inside tmux, `mesh workspace` keeps the current pane as the lead, leaves it on s
 ```bash
 mesh workspace --session agents --count 10 --cmd zsh --detach
 ```
+
+Outside tmux on macOS, the default non-detached behavior is to open the new session in Terminal.app so the human sees it immediately.
 
 Large workspaces spill into additional `mesh-*` windows automatically based on the current tmux window size, so `mesh` does not cram more panes into a window than the view can reasonably hold:
 

@@ -6,6 +6,7 @@ STATE_DIR="${HOME}/.mesh/state"
 LOG_DIR="${HOME}/.mesh/logs"
 READ_TTL="${MESH_READ_TTL:-${SWITCHBOARD_READ_TTL:-120}}"
 TMUX_ARGS_STRING="${MESH_TMUX_ARGS:-${SWITCHBOARD_TMUX_ARGS:-}}"
+AUTO_OPEN="${MESH_AUTO_OPEN:-1}"
 
 usage() {
   cat <<EOF
@@ -91,6 +92,28 @@ pane_rows_in_session() {
 
 safe_path_component() {
   printf '%s' "$1" | tr -cs '[:alnum:]._-' '_'
+}
+
+escape_applescript_string() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+show_session_in_terminal() {
+  local session_name="$1"
+  [[ "$AUTO_OPEN" == "1" ]] || return 1
+  [[ "$(uname -s)" == "Darwin" ]] || return 1
+  command -v osascript >/dev/null 2>&1 || return 1
+
+  local tmux_bin attach_cmd escaped
+  tmux_bin="$(command -v tmux)"
+  attach_cmd="export PATH=\"$(dirname "$tmux_bin"):\$PATH\"; exec \"$tmux_bin\" attach-session -t \"$session_name\""
+  escaped="$(escape_applescript_string "$attach_cmd")"
+  osascript >/dev/null <<EOF
+tell application "Terminal"
+  activate
+  do script "$escaped"
+end tell
+EOF
 }
 
 session_log_dir() {
@@ -828,9 +851,6 @@ cmd_workspace() {
 
   local inside_tmux=0
   [[ -n "${TMUX:-}" ]] && inside_tmux=1
-  if [[ "$inside_tmux" != "1" && "$attach" == "1" ]]; then
-    die "mesh workspace should be started from inside tmux so your lead agent stays visible. Start tmux, relaunch your coding agent inside it, then retry. Use --detach only if you intentionally want a background workspace."
-  fi
 
   if [[ "${#specs[@]}" -eq 0 ]]; then
     local first_title="lead"
@@ -965,6 +985,15 @@ cmd_workspace() {
       if (( mesh_windows > 1 )); then
         note "agents were split across ${mesh_windows} windows to fit the current tmux size; use Alt-. and Alt-, to move between mesh windows"
       fi
+      return
+    fi
+    if show_session_in_terminal "$session_name"; then
+      note "opened session=${session_name} in a new Terminal window"
+      note "the current lead was started outside tmux, so it is not part of that visible workspace. For a lead-preserving workspace, start tmux first and relaunch the lead inside it."
+      return
+    fi
+    if [[ -t 0 && -t 1 ]]; then
+      tmux_cmd attach-session -t "$session_name"
       return
     fi
   fi
