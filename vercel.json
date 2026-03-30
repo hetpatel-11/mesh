@@ -86,6 +86,10 @@
     {
       "source": "/mesh/skills/mesh/SKILL.md",
       "destination": "/skills/mesh/SKILL.md"
+    },
+    {
+      "source": "/mesh/skills/mesh/agents/openai.yaml",
+      "destination": "/skills/mesh/agents/openai.yaml"
     }
   ]
 }

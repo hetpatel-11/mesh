@@ -1,45 +1,59 @@
+---
+name: mesh
+description: Coordinate tmux-backed coding-agent swarms with mesh. Use when Codex, Claude Code, or another coding agent needs to create or rebuild a tmux workspace, launch Codex workers, read sibling panes, send prompts across panes, show a live mesh session to the human, inspect sibling context or repo changes, or recover from blocked Codex tmux access with mesh-codex or mesh-codex-open.
+---
+
 # mesh
 
-Use `mesh` when one coding agent needs to coordinate another through tmux.
+Use `mesh` to coordinate real tmux-backed agent sessions.
 
-Tool selection:
+## Prefer the repo-local tools
 
-- If the current repo contains `./bin/mesh`, prefer that exact binary over a globally installed `mesh`.
-- If the current repo contains `./bin/mesh-codex`, prefer that launcher for a fresh all-Codex workspace from a shell.
-- If Codex is blocked from tmux socket access in its sandbox and the current repo contains `./bin/mesh-codex-open`, prefer that launcher to open a real Terminal-backed Codex mesh outside the sandbox.
-- If `mesh doctor` says the repo-local binary differs from the installed one, use `./bin/mesh` or tell the human to run `bash ./install.sh`.
+- Prefer `./bin/mesh` over any globally installed `mesh`.
+- Prefer `./bin/mesh-codex` for a fresh all-Codex workspace from a shell.
+- Prefer `./bin/mesh-codex-open` on macOS when Codex is blocked from tmux socket access in its sandbox.
+- If `mesh doctor` says the repo-local binary differs from the installed one, use the repo-local binary or tell the human to rerun `bash ./install.sh`.
 
-Preferred loop:
+## Default loop
 
-1. `mesh list`
-2. `mesh context <self>`
-3. `mesh summary <self>`
-4. `mesh changes <self>`
-5. `mesh read <target>`
-6. `mesh assign <target> "<instruction>"`
-7. `mesh read <target>`
+1. Run `mesh list`.
+2. Run `mesh context <self>`.
+3. Run `mesh summary <self>`.
+4. Run `mesh changes <self>`.
+5. Run `mesh read <target>`.
+6. Run `mesh assign <target> "<instruction>"`.
+7. Run `mesh read <target>` again.
 
-Rules:
+## Workspace rules
 
-- If the human started their lead coding CLI outside tmux, prefer telling them to run `tmux`, restart the lead coding CLI inside tmux, and then retry `mesh workspace`.
-- If a workspace already exists and the human wants to see it, use `mesh show <session>` instead of telling them raw tmux switching commands.
-- Do not substitute built-in subagents, delegated helper agents, or any non-tmux fallback for real mesh workers. If tmux socket access is blocked or mesh cannot create a real workspace, say that clearly and stop.
-- If tmux socket access is blocked in the Codex sandbox, use `./bin/mesh-codex-open ...` when available before giving up, because it launches the real mesh workspace in Terminal.app outside the blocked sandbox.
-- Do not claim success unless a real tmux-backed mesh workspace or worker pane actually exists.
-- Read before writing unless you intentionally use `--force`.
-- Use `mesh context <self> --lines <n>` to pull recent output from sibling panes before coordinating or reporting status.
-- Use `mesh summary <self> --lines <n>` when you want a quicker per-agent status view instead of a full pane dump.
-- Use `mesh changes <self> --lines <n>` to inspect the live shared repo state before starting work and again before reporting back.
-- Use `mesh log <target>` if you need the saved snapshot history for a pane, and `mesh follow <target>` when you want to watch one worker live without changing tmux focus.
-- When the lead hands off work, prefer `mesh assign <target> "<instruction>"` instead of raw `mesh ask` so the worker receives sibling context and live repo changes with the assignment.
-- Use pane titles like `claude`, `codex`, or `reviewer` so targets stay stable.
-- Prefer `mesh spawn --title <name> -- <command>` when starting a new worker.
-- For a fresh Codex-only workspace from a shell, prefer `./bin/mesh-codex --count <n> --replace` instead of synthesizing the command yourself.
-- For a fresh Codex-only workspace from a blocked Codex sandbox on macOS, prefer `./bin/mesh-codex-open --count <n> --replace`.
-- For larger live layouts, use `mesh workspace --session <name> --count <n> --cmd zsh` from inside tmux.
-- Inside tmux, `mesh workspace` keeps the current pane as the lead and expands around it instead of switching the human away.
-- Outside tmux on macOS, `mesh workspace` opens the new session in Terminal.app by default so the panes are visible, but that does not preserve the current lead session.
-- After creating a workspace that the human should watch live, prefer `mesh show <session>` so the first mesh window is surfaced automatically.
-- If the requested agent count does not fit comfortably in one tmux window, `mesh workspace` will split agents across additional `mesh-*` windows.
-- `mesh workspace` should stay on-screen by default; use `--detach` only when you intentionally want it off-screen.
-- If a pane title is ambiguous, rename the panes instead of guessing.
+- Tell the human to start `tmux` and relaunch the lead coding CLI inside tmux if the lead was started outside tmux and the task depends on preserving that lead pane.
+- Use `mesh workspace --session <name> --count <n> --cmd zsh` for larger live layouts from inside tmux.
+- Expect `mesh workspace` to keep the current pane as the visible lead when it is run from inside tmux.
+- Use `--detach` only when the workspace should intentionally stay off-screen.
+- Use `mesh show <session>` when the workspace exists and the human needs to see it live.
+- Expect `mesh workspace` to split large swarms across multiple `mesh-*` windows when one window would be too crowded.
+
+## Read and write rules
+
+- Read before writing unless there is a good reason to use `--force`.
+- Use `mesh context <self> --lines <n>` to inspect recent sibling output before coordinating or reporting status.
+- Use `mesh summary <self> --lines <n>` for a tighter per-agent status view.
+- Use `mesh changes <self> --lines <n>` before starting work and again before reporting back.
+- Use `mesh log <target>` when you need saved snapshot history for a pane.
+- Use `mesh follow <target>` when you want to watch one worker live without changing tmux focus.
+- Prefer `mesh assign <target> "<instruction>"` over raw `mesh ask` when handing work to a worker, because it includes sibling context and live repo changes.
+
+## Worker launch rules
+
+- Prefer `mesh spawn --title <name> -- <command>` when starting one new worker.
+- Prefer `./bin/mesh-codex --count <n> --replace` for a fresh Codex-only workspace from a normal shell.
+- Prefer `./bin/mesh-codex-open --count <n> --replace` from a blocked Codex sandbox on macOS.
+- Use stable pane titles such as `lead`, `codex-01`, `codex-02`, `claude`, or `reviewer`.
+- Rename ambiguous pane titles instead of guessing.
+
+## Failure rules
+
+- Do not substitute built-in subagents, delegated helper agents, or any non-tmux fallback for real mesh workers.
+- Do not claim success unless a real tmux-backed mesh workspace or worker pane exists.
+- Stop clearly if tmux socket access is blocked and no real workspace can be created.
+- If Codex is blocked in its sandbox, try `./bin/mesh-codex-open ...` before giving up.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mesh"
+  short_description: "Coordinate tmux-backed coding-agent swarms"
+  default_prompt: "Use $mesh to coordinate tmux-backed coding agents for this task."

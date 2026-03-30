@@ -17,6 +17,8 @@ CODEX_LAUNCHER_BIN="${BIN_DIR}/mesh-codex"
 CODEX_OPEN_BIN="${BIN_DIR}/mesh-codex-open"
 SKILL_DIR="${INSTALL_ROOT}/skills/mesh"
 SKILL_PATH="${SKILL_DIR}/SKILL.md"
+SKILL_AGENTS_DIR="${SKILL_DIR}/agents"
+SKILL_OPENAI_YAML_PATH="${SKILL_AGENTS_DIR}/openai.yaml"
 BASE_URL="${MESH_BASE_URL:-https://het-patel.dev/mesh}"
 TMP_DIR=""
 ASSET_ROOT=""
@@ -35,6 +37,7 @@ need_download_assets() {
   [[ -f "$ROOT/bin/mesh-codex" ]] || return 0
   [[ -f "$ROOT/bin/mesh-codex-open" ]] || return 0
   [[ -f "$ROOT/skills/mesh/SKILL.md" ]] || return 0
+  [[ -f "$ROOT/skills/mesh/agents/openai.yaml" ]] || return 0
   return 1
 }
 
@@ -57,13 +60,14 @@ prepare_assets() {
     if [[ -z "$TMP_DIR" ]]; then
       TMP_DIR="$(mktemp -d)"
       trap cleanup EXIT
-      mkdir -p "$TMP_DIR/bin" "$TMP_DIR/skills/mesh"
+      mkdir -p "$TMP_DIR/bin" "$TMP_DIR/skills/mesh/agents"
       printf '[mesh] downloading mesh assets from %s\n' "$BASE_URL" >&2
       download_asset "/tmux.conf" "$TMP_DIR/tmux.conf"
       download_asset "/bin/mesh" "$TMP_DIR/bin/mesh"
       download_asset "/bin/mesh-codex" "$TMP_DIR/bin/mesh-codex"
       download_asset "/bin/mesh-codex-open" "$TMP_DIR/bin/mesh-codex-open"
       download_asset "/skills/mesh/SKILL.md" "$TMP_DIR/skills/mesh/SKILL.md"
+      download_asset "/skills/mesh/agents/openai.yaml" "$TMP_DIR/skills/mesh/agents/openai.yaml"
     fi
     ASSET_ROOT="$TMP_DIR"
   else
@@ -75,6 +79,7 @@ prepare_assets() {
   [[ -f "$ASSET_ROOT/bin/mesh-codex" ]] || { say "missing asset: $ASSET_ROOT/bin/mesh-codex"; exit 1; }
   [[ -f "$ASSET_ROOT/bin/mesh-codex-open" ]] || { say "missing asset: $ASSET_ROOT/bin/mesh-codex-open"; exit 1; }
   [[ -f "$ASSET_ROOT/skills/mesh/SKILL.md" ]] || { say "missing asset: $ASSET_ROOT/skills/mesh/SKILL.md"; exit 1; }
+  [[ -f "$ASSET_ROOT/skills/mesh/agents/openai.yaml" ]] || { say "missing asset: $ASSET_ROOT/skills/mesh/agents/openai.yaml"; exit 1; }
 }
 
 ensure_tmux() {
@@ -121,13 +126,14 @@ main() {
   ensure_tmux
   prepare_assets
 
-  mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$SKILL_DIR"
+  mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$SKILL_DIR" "$SKILL_AGENTS_DIR"
   mkdir -p "${INSTALL_ROOT}/logs" "${INSTALL_ROOT}/state"
   install -m 0644 "$ASSET_ROOT/tmux.conf" "$LAYER_CONF"
   install -m 0755 "$ASSET_ROOT/bin/mesh" "$BRIDGE_BIN"
   install -m 0755 "$ASSET_ROOT/bin/mesh-codex" "$CODEX_LAUNCHER_BIN"
   install -m 0755 "$ASSET_ROOT/bin/mesh-codex-open" "$CODEX_OPEN_BIN"
   install -m 0644 "$ASSET_ROOT/skills/mesh/SKILL.md" "$SKILL_PATH"
+  install -m 0644 "$ASSET_ROOT/skills/mesh/agents/openai.yaml" "$SKILL_OPENAI_YAML_PATH"
   xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_LAUNCHER_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_OPEN_BIN" 2>/dev/null || true
@@ -139,6 +145,7 @@ main() {
   say "installed codex launcher to $CODEX_LAUNCHER_BIN"
   say "installed codex external launcher to $CODEX_OPEN_BIN"
   say "installed optional agent skill to $SKILL_PATH"
+  say "installed agent metadata to $SKILL_OPENAI_YAML_PATH"
   say "local overrides live at ${INSTALL_ROOT}/local.conf"
 
   if tmux ls >/dev/null 2>&1; then
