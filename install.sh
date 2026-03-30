@@ -57,6 +57,7 @@ main() {
   ensure_tmux
 
   mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
+  mkdir -p "${INSTALL_ROOT}/logs" "${INSTALL_ROOT}/state"
   install -m 0644 "$ROOT/tmux.conf" "$LAYER_CONF"
   install -m 0755 "$ROOT/bin/mesh" "$BRIDGE_BIN"
   xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true

@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROGRAM="${0##*/}"
 STATE_DIR="${HOME}/.mesh/state"
+LOG_DIR="${HOME}/.mesh/logs"
 READ_TTL="${MESH_READ_TTL:-${SWITCHBOARD_READ_TTL:-120}}"
 TMUX_ARGS_STRING="${MESH_TMUX_ARGS:-${SWITCHBOARD_TMUX_ARGS:-}}"
 
@@ -13,6 +14,9 @@ Usage:
   $PROGRAM resolve <target>
   $PROGRAM read <target> [--lines N]
   $PROGRAM context <target> [--lines N] [--all]
+  $PROGRAM summary <target> [--lines N] [--all]
+  $PROGRAM log <target> [--lines N]
+  $PROGRAM follow <target> [--lines N] [--interval N]
   $PROGRAM send [--force] <target> <text>
   $PROGRAM ask [--force] <target> <text>
   $PROGRAM broadcast --force [--except <target>] <text>
@@ -54,7 +58,7 @@ tmux_cmd() {
 }
 
 ensure_state_dir() {
-  mkdir -p "$STATE_DIR"
+  mkdir -p "$STATE_DIR" "$LOG_DIR"
 }
 
 mark_read() {
@@ -81,6 +85,99 @@ pane_rows() {
 pane_rows_in_session() {
   local session_name="$1"
   tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{session_name}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}'
+}
+
+safe_path_component() {
+  printf '%s' "$1" | tr -cs '[:alnum:]._-' '_'
+}
+
+session_log_dir() {
+  local session_name="$1"
+  printf '%s/%s\n' "$LOG_DIR" "$(safe_path_component "$session_name")"
+}
+
+pane_log_path() {
+  local pane_id="$1"
+  local session_name
+  session_name="$(current_session_name "$pane_id")"
+  printf '%s/%s.log\n' "$(session_log_dir "$session_name")" "${pane_id#%}"
+}
+
+snapshot_hash_path() {
+  local pane_id="$1"
+  printf '%s/%s.snapshot' "$STATE_DIR" "${pane_id#%}"
+}
+
+pane_capture() {
+  local pane_id="$1"
+  local lines="$2"
+  tmux_cmd capture-pane -p -J -t "$pane_id" -S "-$lines"
+}
+
+append_snapshot_if_changed() {
+  local pane_id="$1"
+  local content="$2"
+  ensure_state_dir
+  local hash
+  hash="$(printf '%s' "$content" | cksum | awk '{print $1":"$2}')"
+  local hash_path
+  hash_path="$(snapshot_hash_path "$pane_id")"
+  if [[ -f "$hash_path" ]] && [[ "$(cat "$hash_path")" == "$hash" ]]; then
+    return
+  fi
+  printf '%s' "$hash" >"$hash_path"
+
+  local log_path
+  log_path="$(pane_log_path "$pane_id")"
+  mkdir -p "$(dirname "$log_path")"
+  local session_name pane_title pane_command pane_path
+  session_name="$(current_session_name "$pane_id")"
+  pane_title="$(tmux_cmd display-message -p -t "$pane_id" '#{pane_title}')"
+  pane_command="$(tmux_cmd display-message -p -t "$pane_id" '#{pane_current_command}')"
+  pane_path="$(tmux_cmd display-message -p -t "$pane_id" '#{pane_current_path}')"
+  {
+    printf '=== %s session=%s pane=%s title=%s command=%s cwd=%s ===\n' \
+      "$(date '+%Y-%m-%d %H:%M:%S %Z')" \
+      "$session_name" \
+      "$pane_id" \
+      "${pane_title:--}" \
+      "$pane_command" \
+      "$pane_path"
+    printf '%s\n' "$content"
+    printf '\n'
+  } >>"$log_path"
+}
+
+capture_and_record() {
+  local pane_id="$1"
+  local lines="$2"
+  local output
+  output="$(pane_capture "$pane_id" "$lines")"
+  append_snapshot_if_changed "$pane_id" "$output"
+  mark_read "$pane_id"
+  printf '%s\n' "$output"
+}
+
+last_signal_line() {
+  awk '
+    NF {
+      last = $0
+      if ($0 !~ /^[[:space:]]*(➜|❯|>|%|#|\$)/) {
+        signal = $0
+      }
+    }
+    END {
+      if (signal != "") {
+        print signal
+      } else {
+        print last
+      }
+    }
+  '
+}
+
+print_indented() {
+  sed 's/^/  /'
 }
 
 largest_pane_info() {
@@ -189,8 +286,7 @@ cmd_read() {
   require_tmux
   local pane_id
   pane_id="$(resolve_target "$target")"
-  tmux_cmd capture-pane -p -J -t "$pane_id" -S "-$lines"
-  mark_read "$pane_id"
+  capture_and_record "$pane_id" "$lines"
 }
 
 cmd_resolve() {
@@ -237,14 +333,117 @@ cmd_context() {
     printf '\n'
     printf -- '--- %s (%s %s.%s, %s)\n' "${pane_title:-$row_pane}" "$row_pane" "$window_index" "$pane_index" "$pane_command"
     printf 'cwd: %s\n' "$pane_path"
-    tmux_cmd capture-pane -p -J -t "$row_pane" -S "-$lines"
-    mark_read "$row_pane"
+    capture_and_record "$row_pane" "$lines"
   done < <(pane_rows_in_session "$session_name")
 
   if [[ "$found" != "1" ]]; then
     printf '\n'
     printf 'no sibling panes found in session %s\n' "$session_name"
   fi
+}
+
+cmd_summary() {
+  local target=""
+  local lines=12
+  local include_target=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines) lines="$2"; shift 2 ;;
+      --all) include_target=1; shift ;;
+      -* ) die "unknown option for summary: $1" ;;
+      * ) target="$1"; shift ;;
+    esac
+  done
+
+  [[ -n "$target" ]] || die "summary requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  local session_name
+  session_name="$(current_session_name "$pane_id")"
+  local target_title
+  target_title="$(tmux_cmd display-message -p -t "$pane_id" '#{pane_title}')"
+
+  printf 'session=%s target=%s lines=%s\n' "$session_name" "${target_title:-$pane_id}" "$lines"
+
+  local found=0
+  local row_pane row_session window_index pane_index pane_title pane_command pane_path output recent last_line
+  while IFS='|' read -r row_pane row_session window_index pane_index pane_title pane_command pane_path; do
+    [[ -n "$row_pane" ]] || continue
+    if [[ "$include_target" != "1" && "$row_pane" == "$pane_id" ]]; then
+      continue
+    fi
+    found=1
+    output="$(capture_and_record "$row_pane" "$lines")"
+    last_line="$(printf '%s\n' "$output" | last_signal_line)"
+    recent="$(printf '%s\n' "$output" | tail -n 4)"
+    printf '\n'
+    printf -- '--- %s (%s %s.%s, %s)\n' "${pane_title:-$row_pane}" "$row_pane" "$window_index" "$pane_index" "$pane_command"
+    printf 'cwd: %s\n' "$pane_path"
+    printf 'last: %s\n' "${last_line:--}"
+    printf 'recent:\n'
+    printf '%s\n' "$recent" | print_indented
+  done < <(pane_rows_in_session "$session_name")
+
+  if [[ "$found" != "1" ]]; then
+    printf '\n'
+    printf 'no sibling panes found in session %s\n' "$session_name"
+  fi
+}
+
+cmd_log() {
+  local target=""
+  local lines=80
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines) lines="$2"; shift 2 ;;
+      -* ) die "unknown option for log: $1" ;;
+      * ) target="$1"; shift ;;
+    esac
+  done
+  [[ -n "$target" ]] || die "log requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  local log_path
+  log_path="$(pane_log_path "$pane_id")"
+  [[ -f "$log_path" ]] || die "no saved snapshots for $target yet"
+  tail -n "$lines" "$log_path"
+}
+
+cmd_follow() {
+  local target=""
+  local lines=30
+  local interval=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines) lines="$2"; shift 2 ;;
+      --interval) interval="$2"; shift 2 ;;
+      -* ) die "unknown option for follow: $1" ;;
+      * ) target="$1"; shift ;;
+    esac
+  done
+  [[ -n "$target" ]] || die "follow requires a target"
+  [[ "$lines" =~ ^[0-9]+$ ]] || die "--lines must be a positive integer"
+  [[ "$interval" =~ ^[0-9]+$ ]] || die "--interval must be a positive integer"
+  (( interval >= 1 )) || die "--interval must be at least 1"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  local last_hash=""
+  while true; do
+    local output hash
+    output="$(pane_capture "$pane_id" "$lines")"
+    hash="$(printf '%s' "$output" | cksum | awk '{print $1":"$2}')"
+    if [[ "$hash" != "$last_hash" ]]; then
+      printf '=== %s %s ===\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$target"
+      printf '%s\n\n' "$output"
+      append_snapshot_if_changed "$pane_id" "$output"
+      mark_read "$pane_id"
+      last_hash="$hash"
+    fi
+    sleep "$interval"
+  done
 }
 
 cmd_send_common() {
@@ -645,6 +844,7 @@ cmd_doctor() {
   else
     printf 'managed-layer: missing\n'
   fi
+  printf 'logs: %s\n' "$LOG_DIR"
   if [[ -n "${TMUX:-}" ]]; then
     printf 'inside-tmux: yes\n'
     printf 'current-session: %s\n' "$(tmux_cmd display-message -p '#{session_name}')"
@@ -662,6 +862,9 @@ main() {
     resolve) cmd_resolve "$@" ;;
     read) cmd_read "$@" ;;
     context) cmd_context "$@" ;;
+    summary) cmd_summary "$@" ;;
+    log) cmd_log "$@" ;;
+    follow) cmd_follow "$@" ;;
     send) cmd_send_common 0 "$@" ;;
     ask) cmd_send_common 1 "$@" ;;
     broadcast) cmd_broadcast "$@" ;;

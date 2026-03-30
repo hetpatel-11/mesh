@@ -16,6 +16,7 @@ The goal is simple local agent coordination without relying on brittle tmux musc
 - exposes easy no-prefix tmux bindings for panes, movement, resize, and titles
 - provides a shell bridge for listing panes, reading output, sending prompts, naming panes, and spawning workers
 - gives any pane a grouped sibling-context snapshot with `mesh context`
+- keeps clean snapshot logs so agent state can be inspected after the fact
 - adds a safety check so blind writes require either a recent read or an explicit `--force`
 
 ## Install
@@ -74,6 +75,24 @@ Workers can use the same command to stay aware of sibling agents:
 
 ```bash
 mesh context codex-01 --lines 20
+```
+
+Get a tighter status-style view of sibling panes:
+
+```bash
+mesh summary lead --lines 12
+```
+
+Read the saved snapshot log for a pane:
+
+```bash
+mesh log codex-01 --lines 80
+```
+
+Follow a pane live without switching focus:
+
+```bash
+mesh follow codex-01 --lines 30
 ```
 
 Send a message and press enter:
@@ -162,3 +181,4 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - a local override layer for custom tmux tweaks
 - one-command workspace layouts for live multi-agent sessions of arbitrary size
 - current-pane-first workspace bootstrapping so the human always keeps the lead in view
+- sibling summaries and saved snapshot logs so agents can stay aware of each other
