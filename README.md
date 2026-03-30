@@ -42,6 +42,8 @@ If you want a coding agent to learn the mesh workflow, install the skill right a
 npx skills add hetpatel-11/mesh --skill mesh
 ```
 
+If you want it to appear in Claude Code immediately, rerun `bash ./install.sh` or the one-line installer and restart Claude Code. The installer links the mesh skill into `~/.claude/skills/mesh`.
+
 If you prefer cloning the repo first:
 
 ```bash
@@ -57,6 +59,7 @@ That installs:
 - `~/.local/bin/mesh-codex`
 - `~/.local/bin/mesh-codex-open`
 - `~/.mesh/skills/mesh/SKILL.md`
+- `~/.claude/skills/mesh` (symlink for Claude Code discovery)
 - a managed source block in `~/.config/tmux/tmux.conf`
 
 Then start tmux or reload it:

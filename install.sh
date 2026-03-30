@@ -19,6 +19,8 @@ SKILL_DIR="${INSTALL_ROOT}/skills/mesh"
 SKILL_PATH="${SKILL_DIR}/SKILL.md"
 SKILL_AGENTS_DIR="${SKILL_DIR}/agents"
 SKILL_OPENAI_YAML_PATH="${SKILL_AGENTS_DIR}/openai.yaml"
+CLAUDE_SKILLS_DIR="${HOME}/.claude/skills"
+CLAUDE_SKILL_LINK="${CLAUDE_SKILLS_DIR}/mesh"
 BASE_URL="${MESH_BASE_URL:-https://het-patel.dev/mesh}"
 TMP_DIR=""
 ASSET_ROOT=""
@@ -134,6 +136,9 @@ main() {
   install -m 0755 "$ASSET_ROOT/bin/mesh-codex-open" "$CODEX_OPEN_BIN"
   install -m 0644 "$ASSET_ROOT/skills/mesh/SKILL.md" "$SKILL_PATH"
   install -m 0644 "$ASSET_ROOT/skills/mesh/agents/openai.yaml" "$SKILL_OPENAI_YAML_PATH"
+  mkdir -p "$CLAUDE_SKILLS_DIR"
+  rm -rf "$CLAUDE_SKILL_LINK"
+  ln -s "$SKILL_DIR" "$CLAUDE_SKILL_LINK"
   xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_LAUNCHER_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_OPEN_BIN" 2>/dev/null || true
@@ -146,6 +151,7 @@ main() {
   say "installed codex external launcher to $CODEX_OPEN_BIN"
   say "installed optional agent skill to $SKILL_PATH"
   say "installed agent metadata to $SKILL_OPENAI_YAML_PATH"
+  say "linked Claude Code skill to $CLAUDE_SKILL_LINK"
   say "local overrides live at ${INSTALL_ROOT}/local.conf"
 
   if tmux ls >/dev/null 2>&1; then
