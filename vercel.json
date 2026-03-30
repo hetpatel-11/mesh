@@ -1,0 +1,83 @@
+{
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/mesh/install.sh",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/x-shellscript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        }
+      ]
+    },
+    {
+      "source": "/mesh/tmux.conf",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        }
+      ]
+    },
+    {
+      "source": "/mesh/bin/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        }
+      ]
+    },
+    {
+      "source": "/mesh/skills/(.*)",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "text/plain; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/mesh/install.sh",
+      "destination": "/install.sh"
+    },
+    {
+      "source": "/mesh/tmux.conf",
+      "destination": "/tmux.conf"
+    },
+    {
+      "source": "/mesh/bin/mesh",
+      "destination": "/bin/mesh"
+    },
+    {
+      "source": "/mesh/bin/mesh-codex",
+      "destination": "/bin/mesh-codex"
+    },
+    {
+      "source": "/mesh/bin/mesh-codex-open",
+      "destination": "/bin/mesh-codex-open"
+    },
+    {
+      "source": "/mesh/skills/mesh/SKILL.md",
+      "destination": "/skills/mesh/SKILL.md"
+    }
+  ]
+}
