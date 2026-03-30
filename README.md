@@ -1,14 +1,8 @@
 # mesh
 
-`mesh` is a tmux wrapper for coding agents.
+`mesh` is a tmux wrapper for local coding-agent swarms.
 
-It is deliberately small:
-
-- one install script
-- one tmux config layer
-- one bridge CLI
-
-The goal is simple local agent coordination without relying on brittle tmux muscle memory or heavy background infrastructure.
+It keeps the human in control, keeps every worker visible in real terminals, and gives the lead agent a small control surface for reading, messaging, and coordinating sibling panes.
 
 ## What It Does
 
@@ -21,7 +15,17 @@ The goal is simple local agent coordination without relying on brittle tmux musc
 
 ## Install
 
+The public one-line install is:
+
 ```bash
+curl -fsSL https://het-patel.dev/mesh/install.sh | bash
+```
+
+If you prefer cloning the repo first:
+
+```bash
+git clone https://github.com/hetpatel-11/mesh.git
+cd mesh
 bash ./install.sh
 ```
 
@@ -31,6 +35,7 @@ That installs:
 - `~/.local/bin/mesh`
 - `~/.local/bin/mesh-codex`
 - `~/.local/bin/mesh-codex-open`
+- `~/.mesh/skills/mesh/SKILL.md`
 - a managed source block in `~/.config/tmux/tmux.conf`
 
 Then start tmux or reload it:
@@ -39,11 +44,13 @@ Then start tmux or reload it:
 tmux source-file ~/.config/tmux/tmux.conf
 ```
 
-After pulling new changes to this repo, rerun the installer so the copy in `~/.local/bin/mesh` stays in sync:
+To update:
 
 ```bash
-bash ./install.sh
+curl -fsSL https://het-patel.dev/mesh/install.sh | bash
 ```
+
+## Quick Start
 
 For lead-driven agent work, start tmux first and launch your lead coding agent inside that tmux session:
 
@@ -51,7 +58,25 @@ For lead-driven agent work, start tmux first and launch your lead coding agent i
 tmux
 ```
 
+Then inside that lead terminal:
+
+```bash
+mesh workspace --session agents --count 5 --cmd zsh
+```
+
 If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will try to open the new workspace in a visible Terminal window on macOS. That gets the panes on screen, but your current lead is still outside tmux. For the best lead-preserving behavior, start tmux first and launch the lead inside it.
+
+## Skill
+
+Humans do not need a skill to use `mesh`.
+
+The skill is only for coding agents that should learn the expected tmux workflow and avoid bad fallbacks. The installer places a local copy here:
+
+```bash
+~/.mesh/skills/mesh/SKILL.md
+```
+
+Use that file when you want Claude Code, Codex, or another coding agent to operate `mesh` directly.
 
 ## Codex Note
 
@@ -64,6 +89,32 @@ That is a Codex sandbox limitation, not a `mesh` protocol failure. The practical
 - use Claude Code or another lead agent with real tmux access to steer the rest of the swarm
 
 So yes: Claude Code can act as the lead and coordinate Codex workers, as long as Claude is running in an environment that can access tmux normally.
+
+## Common Flows
+
+Create a workspace and keep the lead visible:
+
+```bash
+mesh workspace --session agents --count 10 --cmd zsh
+```
+
+Bring an existing workspace onscreen:
+
+```bash
+mesh show agents
+```
+
+Boot an all-Codex workspace:
+
+```bash
+mesh-codex --count 5 --replace
+```
+
+If Codex is sandboxed and cannot touch tmux sockets, open it outside the blocked runner:
+
+```bash
+mesh-codex-open --count 5 --replace
+```
 
 ## Bridge Commands
 
@@ -253,3 +304,8 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - current-pane-first workspace bootstrapping so the human always keeps the lead in view
 - sibling summaries and saved snapshot logs so agents can stay aware of each other
 - contextual worker handoffs so the lead can send tasks with live swarm and repo awareness attached
+
+## Public Endpoints
+
+- `https://het-patel.dev/mesh`
+- `https://het-patel.dev/mesh/install.sh`

@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-}"
+if [[ -n "$SCRIPT_SOURCE" ]]; then
+  ROOT="$(cd "$(dirname "$SCRIPT_SOURCE")" && pwd)"
+else
+  ROOT="$PWD"
+fi
 INSTALL_ROOT="${HOME}/.mesh"
 BIN_DIR="${HOME}/.local/bin"
 TMUX_DIR="${HOME}/.config/tmux"
@@ -10,9 +15,61 @@ LAYER_CONF="${INSTALL_ROOT}/tmux.conf"
 BRIDGE_BIN="${BIN_DIR}/mesh"
 CODEX_LAUNCHER_BIN="${BIN_DIR}/mesh-codex"
 CODEX_OPEN_BIN="${BIN_DIR}/mesh-codex-open"
+SKILL_DIR="${INSTALL_ROOT}/skills/mesh"
+SKILL_PATH="${SKILL_DIR}/SKILL.md"
+BASE_URL="${MESH_BASE_URL:-https://het-patel.dev/mesh}"
+TMP_DIR=""
 
 say() {
   printf '[mesh] %s\n' "$*"
+}
+
+cleanup() {
+  [[ -n "$TMP_DIR" ]] && [[ -d "$TMP_DIR" ]] && rm -rf "$TMP_DIR"
+}
+
+need_download_assets() {
+  [[ -f "$ROOT/tmux.conf" ]] || return 0
+  [[ -f "$ROOT/bin/mesh" ]] || return 0
+  [[ -f "$ROOT/bin/mesh-codex" ]] || return 0
+  [[ -f "$ROOT/bin/mesh-codex-open" ]] || return 0
+  [[ -f "$ROOT/skills/mesh/SKILL.md" ]] || return 0
+  return 1
+}
+
+require_curl() {
+  command -v curl >/dev/null 2>&1 || {
+    say "curl is required to download mesh assets from $BASE_URL"
+    exit 1
+  }
+}
+
+download_asset() {
+  local remote_path="$1"
+  local local_path="$2"
+  curl -fsSL "${BASE_URL}${remote_path}" -o "$local_path"
+}
+
+asset_path() {
+  local relative_path="$1"
+  if need_download_assets; then
+    require_curl
+    if [[ -z "$TMP_DIR" ]]; then
+      TMP_DIR="$(mktemp -d)"
+      trap cleanup EXIT
+      mkdir -p "$TMP_DIR/bin" "$TMP_DIR/skills/mesh"
+      printf '[mesh] downloading mesh assets from %s\n' "$BASE_URL" >&2
+      download_asset "/tmux.conf" "$TMP_DIR/tmux.conf"
+      download_asset "/bin/mesh" "$TMP_DIR/bin/mesh"
+      download_asset "/bin/mesh-codex" "$TMP_DIR/bin/mesh-codex"
+      download_asset "/bin/mesh-codex-open" "$TMP_DIR/bin/mesh-codex-open"
+      download_asset "/skills/mesh/SKILL.md" "$TMP_DIR/skills/mesh/SKILL.md"
+    fi
+    printf '%s/%s\n' "$TMP_DIR" "$relative_path"
+    return
+  fi
+
+  printf '%s/%s\n' "$ROOT" "$relative_path"
 }
 
 ensure_tmux() {
@@ -58,12 +115,13 @@ EOF
 main() {
   ensure_tmux
 
-  mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
+  mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$SKILL_DIR"
   mkdir -p "${INSTALL_ROOT}/logs" "${INSTALL_ROOT}/state"
-  install -m 0644 "$ROOT/tmux.conf" "$LAYER_CONF"
-  install -m 0755 "$ROOT/bin/mesh" "$BRIDGE_BIN"
-  install -m 0755 "$ROOT/bin/mesh-codex" "$CODEX_LAUNCHER_BIN"
-  install -m 0755 "$ROOT/bin/mesh-codex-open" "$CODEX_OPEN_BIN"
+  install -m 0644 "$(asset_path "tmux.conf")" "$LAYER_CONF"
+  install -m 0755 "$(asset_path "bin/mesh")" "$BRIDGE_BIN"
+  install -m 0755 "$(asset_path "bin/mesh-codex")" "$CODEX_LAUNCHER_BIN"
+  install -m 0755 "$(asset_path "bin/mesh-codex-open")" "$CODEX_OPEN_BIN"
+  install -m 0644 "$(asset_path "skills/mesh/SKILL.md")" "$SKILL_PATH"
   xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_LAUNCHER_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_OPEN_BIN" 2>/dev/null || true
@@ -74,6 +132,7 @@ main() {
   say "installed bridge to $BRIDGE_BIN"
   say "installed codex launcher to $CODEX_LAUNCHER_BIN"
   say "installed codex external launcher to $CODEX_OPEN_BIN"
+  say "installed optional agent skill to $SKILL_PATH"
   say "local overrides live at ${INSTALL_ROOT}/local.conf"
 
   if tmux ls >/dev/null 2>&1; then
