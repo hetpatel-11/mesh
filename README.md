@@ -83,6 +83,12 @@ Get a tighter status-style view of sibling panes:
 mesh summary lead --lines 12
 ```
 
+See the live repo status and diff that every worker is sharing:
+
+```bash
+mesh changes lead --lines 20
+```
+
 Read the saved snapshot log for a pane:
 
 ```bash
@@ -93,6 +99,12 @@ Follow a pane live without switching focus:
 
 ```bash
 mesh follow codex-01 --lines 30
+```
+
+Hand a task to a worker with sibling context and live repo changes included automatically:
+
+```bash
+mesh assign codex-01 "Own auth tests. Avoid overlapping with the reviewer and report what you verified."
 ```
 
 Send a message and press enter:
@@ -182,3 +194,4 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - one-command workspace layouts for live multi-agent sessions of arbitrary size
 - current-pane-first workspace bootstrapping so the human always keeps the lead in view
 - sibling summaries and saved snapshot logs so agents can stay aware of each other
+- contextual worker handoffs so the lead can send tasks with live swarm and repo awareness attached

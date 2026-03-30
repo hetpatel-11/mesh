@@ -14,11 +14,13 @@ Usage:
   $PROGRAM resolve <target>
   $PROGRAM read <target> [--lines N]
   $PROGRAM context <target> [--lines N] [--all]
+  $PROGRAM changes <target> [--lines N]
   $PROGRAM summary <target> [--lines N] [--all]
   $PROGRAM log <target> [--lines N]
   $PROGRAM follow <target> [--lines N] [--interval N]
   $PROGRAM send [--force] <target> <text>
   $PROGRAM ask [--force] <target> <text>
+  $PROGRAM assign [--force] [--lines N] [--changes N] <target> <instruction>
   $PROGRAM broadcast --force [--except <target>] <text>
   $PROGRAM keys <target> <key...>
   $PROGRAM name <target> <title>
@@ -178,6 +180,145 @@ last_signal_line() {
 
 print_indented() {
   sed 's/^/  /'
+}
+
+pane_title_value() {
+  local pane_id="$1"
+  tmux_cmd display-message -p -t "$pane_id" '#{pane_title}'
+}
+
+pane_command_value() {
+  local pane_id="$1"
+  tmux_cmd display-message -p -t "$pane_id" '#{pane_current_command}'
+}
+
+pane_path_value() {
+  local pane_id="$1"
+  tmux_cmd display-message -p -t "$pane_id" '#{pane_current_path}'
+}
+
+repo_root_for_path() {
+  local path="$1"
+  git -C "$path" rev-parse --show-toplevel 2>/dev/null || true
+}
+
+repo_branch_for_root() {
+  local root="$1"
+  git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true
+}
+
+repo_last_commit_for_root() {
+  local root="$1"
+  git -C "$root" log -1 --oneline 2>/dev/null || true
+}
+
+render_repo_snapshot_for_path() {
+  local path="$1"
+  local lines="$2"
+  local repo_root
+  repo_root="$(repo_root_for_path "$path")"
+  if [[ -z "$repo_root" ]]; then
+    printf 'repo: none\n'
+    return
+  fi
+
+  local branch last_commit
+  branch="$(repo_branch_for_root "$repo_root")"
+  last_commit="$(repo_last_commit_for_root "$repo_root")"
+  printf 'repo: %s\n' "$repo_root"
+  printf 'branch: %s\n' "${branch:-unknown}"
+  printf 'head: %s\n' "${last_commit:-no commits yet}"
+
+  local status diffstat
+  status="$(git -C "$repo_root" status --short 2>/dev/null | head -n "$lines")"
+  diffstat="$(git -C "$repo_root" diff --stat HEAD 2>/dev/null | head -n "$lines")"
+
+  if [[ -n "$status" ]]; then
+    printf 'status:\n'
+    printf '%s\n' "$status" | print_indented
+  else
+    printf 'status: clean\n'
+  fi
+
+  if [[ -n "$diffstat" ]]; then
+    printf 'diff:\n'
+    printf '%s\n' "$diffstat" | print_indented
+  fi
+}
+
+render_changes_for_pane() {
+  local pane_id="$1"
+  local lines="$2"
+  render_repo_snapshot_for_path "$(pane_path_value "$pane_id")" "$lines"
+}
+
+render_summary_for_pane() {
+  local pane_id="$1"
+  local lines="$2"
+  local include_target="$3"
+  local include_changes="$4"
+  local session_name target_title
+  session_name="$(current_session_name "$pane_id")"
+  target_title="$(pane_title_value "$pane_id")"
+
+  printf 'session=%s target=%s lines=%s\n' "$session_name" "${target_title:-$pane_id}" "$lines"
+  if [[ "$include_changes" == "1" ]]; then
+    printf '\n'
+    render_changes_for_pane "$pane_id" "$lines"
+  fi
+
+  local found=0
+  local row_pane row_session window_index pane_index pane_title pane_command pane_path output recent last_line
+  while IFS='|' read -r row_pane row_session window_index pane_index pane_title pane_command pane_path; do
+    [[ -n "$row_pane" ]] || continue
+    if [[ "$include_target" != "1" && "$row_pane" == "$pane_id" ]]; then
+      continue
+    fi
+    found=1
+    output="$(capture_and_record "$row_pane" "$lines")"
+    last_line="$(printf '%s\n' "$output" | last_signal_line)"
+    recent="$(printf '%s\n' "$output" | tail -n 4)"
+    printf '\n'
+    printf -- '--- %s (%s %s.%s, %s)\n' "${pane_title:-$row_pane}" "$row_pane" "$window_index" "$pane_index" "$pane_command"
+    printf 'cwd: %s\n' "$pane_path"
+    printf 'last: %s\n' "${last_line:--}"
+    printf 'recent:\n'
+    printf '%s\n' "$recent" | print_indented
+  done < <(pane_rows_in_session "$session_name")
+
+  if [[ "$found" != "1" ]]; then
+    printf '\n'
+    printf 'no sibling panes found in session %s\n' "$session_name"
+  fi
+}
+
+build_assignment_packet() {
+  local pane_id="$1"
+  local instruction="$2"
+  local lines="$3"
+  local target_title
+  target_title="$(pane_title_value "$pane_id")"
+  cat <<EOF
+You are working inside a mesh workspace.
+Target worker: ${target_title:-$pane_id}
+
+Workspace awareness:
+$(render_summary_for_pane "$pane_id" "$lines" 0 1)
+
+Assignment:
+$instruction
+
+Work in coordination with the sibling agents above. Avoid duplicating their scope, account for the shared repo state in the workspace awareness block, and report back what you changed and what you verified.
+EOF
+}
+
+paste_text_to_pane() {
+  local pane_id="$1"
+  local text="$2"
+  local buffer_name="mesh.$$.${RANDOM}"
+  printf '%s' "$text" | tmux_cmd load-buffer -b "$buffer_name" -
+  tmux_cmd paste-buffer -p -d -b "$buffer_name" -t "$pane_id"
+  tmux_cmd delete-buffer -b "$buffer_name" >/dev/null 2>&1 || true
 }
 
 largest_pane_info() {
@@ -359,36 +500,25 @@ cmd_summary() {
   require_tmux
   local pane_id
   pane_id="$(resolve_target "$target")"
-  local session_name
-  session_name="$(current_session_name "$pane_id")"
-  local target_title
-  target_title="$(tmux_cmd display-message -p -t "$pane_id" '#{pane_title}')"
+  render_summary_for_pane "$pane_id" "$lines" "$include_target" 1
+}
 
-  printf 'session=%s target=%s lines=%s\n' "$session_name" "${target_title:-$pane_id}" "$lines"
-
-  local found=0
-  local row_pane row_session window_index pane_index pane_title pane_command pane_path output recent last_line
-  while IFS='|' read -r row_pane row_session window_index pane_index pane_title pane_command pane_path; do
-    [[ -n "$row_pane" ]] || continue
-    if [[ "$include_target" != "1" && "$row_pane" == "$pane_id" ]]; then
-      continue
-    fi
-    found=1
-    output="$(capture_and_record "$row_pane" "$lines")"
-    last_line="$(printf '%s\n' "$output" | last_signal_line)"
-    recent="$(printf '%s\n' "$output" | tail -n 4)"
-    printf '\n'
-    printf -- '--- %s (%s %s.%s, %s)\n' "${pane_title:-$row_pane}" "$row_pane" "$window_index" "$pane_index" "$pane_command"
-    printf 'cwd: %s\n' "$pane_path"
-    printf 'last: %s\n' "${last_line:--}"
-    printf 'recent:\n'
-    printf '%s\n' "$recent" | print_indented
-  done < <(pane_rows_in_session "$session_name")
-
-  if [[ "$found" != "1" ]]; then
-    printf '\n'
-    printf 'no sibling panes found in session %s\n' "$session_name"
-  fi
+cmd_changes() {
+  local target=""
+  local lines=20
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --lines) lines="$2"; shift 2 ;;
+      -* ) die "unknown option for changes: $1" ;;
+      * ) target="$1"; shift ;;
+    esac
+  done
+  [[ -n "$target" ]] || die "changes requires a target"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  printf 'target=%s\n' "$target"
+  render_changes_for_pane "$pane_id" "$lines"
 }
 
 cmd_log() {
@@ -446,6 +576,35 @@ cmd_follow() {
   done
 }
 
+cmd_assign() {
+  local force=0
+  local lines=12
+  local change_lines=20
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force=1; shift ;;
+      --lines) lines="$2"; shift 2 ;;
+      --changes) change_lines="$2"; shift 2 ;;
+      * ) break ;;
+    esac
+  done
+  local target="${1:-}"
+  shift || true
+  local instruction="${*:-}"
+  [[ -n "$target" ]] || die "assign requires a target"
+  [[ -n "$instruction" ]] || die "assign requires an instruction"
+  require_tmux
+  local pane_id
+  pane_id="$(resolve_target "$target")"
+  if [[ "$force" != "1" ]]; then
+    require_recent_read "$pane_id"
+  fi
+  local packet
+  packet="$(build_assignment_packet "$pane_id" "$instruction" "$lines" "$change_lines")"
+  paste_text_to_pane "$pane_id" "$packet"
+  tmux_cmd send-keys -t "$pane_id" Enter
+}
+
 cmd_send_common() {
   local submit="$1"
   shift
@@ -467,7 +626,7 @@ cmd_send_common() {
   if [[ "$force" != "1" ]]; then
     require_recent_read "$pane_id"
   fi
-  tmux_cmd send-keys -t "$pane_id" -l -- "$text"
+  paste_text_to_pane "$pane_id" "$text"
   if [[ "$submit" == "1" ]]; then
     tmux_cmd send-keys -t "$pane_id" Enter
   fi
@@ -497,7 +656,7 @@ cmd_broadcast() {
   while IFS= read -r pane_id; do
     [[ -n "$pane_id" ]] || continue
     [[ "$pane_id" == "$except_pane" ]] && continue
-    tmux_cmd send-keys -t "$pane_id" -l -- "$text"
+    paste_text_to_pane "$pane_id" "$text"
     tmux_cmd send-keys -t "$pane_id" Enter
     sent=$((sent + 1))
   done < <(pane_rows | cut -d'|' -f1)
@@ -862,9 +1021,11 @@ main() {
     resolve) cmd_resolve "$@" ;;
     read) cmd_read "$@" ;;
     context) cmd_context "$@" ;;
+    changes) cmd_changes "$@" ;;
     summary) cmd_summary "$@" ;;
     log) cmd_log "$@" ;;
     follow) cmd_follow "$@" ;;
+    assign) cmd_assign "$@" ;;
     send) cmd_send_common 0 "$@" ;;
     ask) cmd_send_common 1 "$@" ;;
     broadcast) cmd_broadcast "$@" ;;
