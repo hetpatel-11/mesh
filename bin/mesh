@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PROGRAM="${0##*/}"
-STATE_DIR="${HOME}/.switchboard/state"
-READ_TTL="${SWITCHBOARD_READ_TTL:-120}"
-TMUX_ARGS_STRING="${SWITCHBOARD_TMUX_ARGS:-}"
+STATE_DIR="${HOME}/.mesh/state"
+READ_TTL="${MESH_READ_TTL:-${SWITCHBOARD_READ_TTL:-120}}"
+TMUX_ARGS_STRING="${MESH_TMUX_ARGS:-${SWITCHBOARD_TMUX_ARGS:-}}"
 
 usage() {
   cat <<EOF
@@ -418,7 +418,7 @@ cmd_workspace() {
     tmux_cmd select-layout -t "$window_id" tiled >/dev/null || true
   done < <(tmux_cmd list-windows -t "$session_name" -F '#{window_id}')
 
-  tmux_cmd display-message -t "$session_name" "switchboard workspace ready: ${#specs[@]} panes"
+  tmux_cmd display-message -t "$session_name" "mesh workspace ready: ${#specs[@]} panes"
 
   if [[ "$attach" == "1" ]]; then
     if [[ -n "${TMUX:-}" ]]; then
@@ -466,7 +466,7 @@ cmd_doctor() {
   else
     printf 'config: missing\n'
   fi
-  if [[ -f "${HOME}/.switchboard/tmux.conf" ]]; then
+  if [[ -f "${HOME}/.mesh/tmux.conf" ]]; then
     printf 'managed-layer: installed\n'
   else
     printf 'managed-layer: missing\n'

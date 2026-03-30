@@ -1,6 +1,6 @@
-# switchboard
+# mesh
 
-`switchboard` is a tmux wrapper for coding agents.
+`mesh` is a tmux wrapper for coding agents.
 
 It is deliberately small:
 
@@ -25,8 +25,8 @@ bash ./install.sh
 
 That installs:
 
-- `~/.switchboard/tmux.conf`
-- `~/.local/bin/switchboard`
+- `~/.mesh/tmux.conf`
+- `~/.local/bin/mesh`
 - a managed source block in `~/.config/tmux/tmux.conf`
 
 Then start tmux or reload it:
@@ -35,7 +35,7 @@ Then start tmux or reload it:
 tmux source-file ~/.config/tmux/tmux.conf
 ```
 
-If you launched your lead coding agent outside tmux, start tmux first before using `switchboard` for agent-to-agent work:
+If you launched your lead coding agent outside tmux, start tmux first before using `mesh` for agent-to-agent work:
 
 ```bash
 tmux
@@ -46,67 +46,67 @@ tmux
 List panes:
 
 ```bash
-switchboard list
+mesh list
 ```
 
 Resolve a target before acting on it:
 
 ```bash
-switchboard resolve codex
+mesh resolve codex
 ```
 
 Read a pane before writing:
 
 ```bash
-switchboard read codex --lines 80
+mesh read codex --lines 80
 ```
 
 Send a message and press enter:
 
 ```bash
-switchboard ask codex "Implement auth middleware and reply with tests run."
+mesh ask codex "Implement auth middleware and reply with tests run."
 ```
 
 Force a write when you know what you are doing:
 
 ```bash
-switchboard ask --force codex "Continue from your last checkpoint."
+mesh ask --force codex "Continue from your last checkpoint."
 ```
 
 Broadcast to every live pane except your own:
 
 ```bash
-switchboard broadcast --force --except claude "Stand by for a new task."
+mesh broadcast --force --except claude "Stand by for a new task."
 ```
 
 Spawn a worker pane to the right and name it:
 
 ```bash
-switchboard spawn --title codex --cwd "$PWD" --right -- codex
+mesh spawn --title codex --cwd "$PWD" --right -- codex
 ```
 
 Create a real multi-agent workspace in one shot:
 
 ```bash
-switchboard workspace --session agents --count 10 --cmd zsh
+mesh workspace --session agents --count 10 --cmd zsh
 ```
 
 `workspace` attaches by default, so the layout should come on screen immediately. If you want it created in the background instead:
 
 ```bash
-switchboard workspace --session agents --count 10 --cmd zsh --detach
+mesh workspace --session agents --count 10 --cmd zsh --detach
 ```
 
 Scale beyond 10 automatically by spilling into additional tmux windows:
 
 ```bash
-switchboard workspace --session agents --count 24 --cmd zsh --per-window 8
+mesh workspace --session agents --count 24 --cmd zsh --per-window 8
 ```
 
-Create a named multi-agent swarm with real commands:
+Create a named multi-agent workspace with real commands:
 
 ```bash
-switchboard workspace --session agents --replace \
+mesh workspace --session agents --replace \
   --agent lead:claude \
   --agent codex-01:codex \
   --agent codex-02:codex \

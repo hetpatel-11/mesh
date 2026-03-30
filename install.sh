@@ -2,15 +2,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_ROOT="${HOME}/.switchboard"
+INSTALL_ROOT="${HOME}/.mesh"
 BIN_DIR="${HOME}/.local/bin"
 TMUX_DIR="${HOME}/.config/tmux"
 MAIN_TMUX_CONF="${TMUX_DIR}/tmux.conf"
 LAYER_CONF="${INSTALL_ROOT}/tmux.conf"
-BRIDGE_BIN="${BIN_DIR}/switchboard"
+BRIDGE_BIN="${BIN_DIR}/mesh"
 
 say() {
-  printf '[switchboard] %s\n' "$*"
+  printf '[mesh] %s\n' "$*"
 }
 
 ensure_tmux() {
@@ -36,7 +36,7 @@ ensure_loader_block() {
   mkdir -p "$TMUX_DIR"
   if [[ ! -f "$MAIN_TMUX_CONF" ]]; then
     cat >"$MAIN_TMUX_CONF" <<EOF
-# switchboard managed block
+# mesh managed block
 source-file "$LAYER_CONF"
 EOF
     return
@@ -48,7 +48,7 @@ EOF
 
   cat >>"$MAIN_TMUX_CONF" <<EOF
 
-# switchboard managed block
+# mesh managed block
 source-file "$LAYER_CONF"
 EOF
 }
@@ -58,7 +58,8 @@ main() {
 
   mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
   install -m 0644 "$ROOT/tmux.conf" "$LAYER_CONF"
-  install -m 0755 "$ROOT/bin/switchboard" "$BRIDGE_BIN"
+  install -m 0755 "$ROOT/bin/mesh" "$BRIDGE_BIN"
+  xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true
   touch "${INSTALL_ROOT}/local.conf"
   ensure_loader_block
 
