@@ -6,6 +6,16 @@ The simplest way to understand it is this: `mesh` lets one coding agent talk to 
 
 That same workflow scales beyond two agents. You can use one lead agent and many workers in the same tmux workspace, keep every session visible, and let the human watch, interrupt, or type in any pane at any time. `mesh` is built for people who want multiple coding agents working on the same problem, but still want the work to stay understandable and under human control.
 
+## Why mesh
+
+`mesh` is not just a way to type into another pane. It is built around the real workflow people want when they use multiple coding agents together:
+
+- one visible lead agent can coordinate the rest of the swarm without disappearing off-screen
+- the human stays in the loop and can watch, interrupt, or type in any agent terminal at any time
+- work can scale from one lead plus one worker to larger live workspaces spread across multiple tmux windows
+- handoffs are more informed because workers can receive sibling context, session summaries, and live repo-change snapshots
+- Codex, Claude Code, and other terminal coding agents can all participate, even when some environments need a launcher workaround
+
 ## What It Does
 
 - lets Claude Code, Codex, and other terminal-based coding agents communicate through tmux-backed panes
