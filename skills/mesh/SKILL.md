@@ -6,6 +6,7 @@ Tool selection:
 
 - If the current repo contains `./bin/mesh`, prefer that exact binary over a globally installed `mesh`.
 - If the current repo contains `./bin/mesh-codex`, prefer that launcher for a fresh all-Codex workspace from a shell.
+- If Codex is blocked from tmux socket access in its sandbox and the current repo contains `./bin/mesh-codex-open`, prefer that launcher to open a real Terminal-backed Codex mesh outside the sandbox.
 - If `mesh doctor` says the repo-local binary differs from the installed one, use `./bin/mesh` or tell the human to run `bash ./install.sh`.
 
 Preferred loop:
@@ -22,6 +23,7 @@ Rules:
 
 - If the human started their lead coding CLI outside tmux, prefer telling them to run `tmux`, restart the lead coding CLI inside tmux, and then retry `mesh workspace`.
 - Do not substitute built-in subagents, delegated helper agents, or any non-tmux fallback for real mesh workers. If tmux socket access is blocked or mesh cannot create a real workspace, say that clearly and stop.
+- If tmux socket access is blocked in the Codex sandbox, use `./bin/mesh-codex-open ...` when available before giving up, because it launches the real mesh workspace in Terminal.app outside the blocked sandbox.
 - Do not claim success unless a real tmux-backed mesh workspace or worker pane actually exists.
 - Read before writing unless you intentionally use `--force`.
 - Use `mesh context <self> --lines <n>` to pull recent output from sibling panes before coordinating or reporting status.
@@ -32,6 +34,7 @@ Rules:
 - Use pane titles like `claude`, `codex`, or `reviewer` so targets stay stable.
 - Prefer `mesh spawn --title <name> -- <command>` when starting a new worker.
 - For a fresh Codex-only workspace from a shell, prefer `./bin/mesh-codex --count <n> --replace` instead of synthesizing the command yourself.
+- For a fresh Codex-only workspace from a blocked Codex sandbox on macOS, prefer `./bin/mesh-codex-open --count <n> --replace`.
 - For larger live layouts, use `mesh workspace --session <name> --count <n> --cmd zsh` from inside tmux.
 - Inside tmux, `mesh workspace` keeps the current pane as the lead and expands around it instead of switching the human away.
 - Outside tmux on macOS, `mesh workspace` opens the new session in Terminal.app by default so the panes are visible, but that does not preserve the current lead session.

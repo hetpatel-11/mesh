@@ -30,6 +30,7 @@ That installs:
 - `~/.mesh/tmux.conf`
 - `~/.local/bin/mesh`
 - `~/.local/bin/mesh-codex`
+- `~/.local/bin/mesh-codex-open`
 - a managed source block in `~/.config/tmux/tmux.conf`
 
 Then start tmux or reload it:
@@ -149,6 +150,12 @@ Boot an all-Codex workspace from a shell with one command:
 
 ```bash
 mesh-codex --count 5 --replace
+```
+
+If a coding agent is blocked from tmux socket access in its own sandbox, use the external launcher instead. It opens Terminal.app and boots the Codex mesh there:
+
+```bash
+mesh-codex-open --count 5 --replace
 ```
 
 Or name the Codex panes explicitly:

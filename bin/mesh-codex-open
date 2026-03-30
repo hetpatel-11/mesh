@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCHER_BIN="${ROOT}/mesh-codex"
+
+usage() {
+  cat <<EOF
+Usage:
+  mesh-codex-open [--session NAME] [--count N] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace]
+  mesh-codex-open [--session NAME] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace] --agent NAME [--agent NAME ...]
+  mesh-codex-open [--help]
+
+This opens Terminal.app and creates a real tmux-backed Codex mesh there.
+EOF
+}
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+escape_applescript_string() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+main() {
+  [[ "$(uname -s)" == "Darwin" ]] || die "mesh-codex-open currently supports macOS only"
+  command -v osascript >/dev/null 2>&1 || die "osascript is required"
+  [[ -x "$LAUNCHER_BIN" ]] || die "mesh-codex launcher not found at $LAUNCHER_BIN"
+
+  local session_name="agents"
+  local count=3
+  local cwd="${PWD}"
+  local approval="never"
+  local sandbox="workspace-write"
+  local replace=0
+  local names=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help) usage; return ;;
+      --session) session_name="$2"; shift 2 ;;
+      --count) count="$2"; shift 2 ;;
+      --cwd) cwd="$2"; shift 2 ;;
+      --approval) approval="$2"; shift 2 ;;
+      --sandbox) sandbox="$2"; shift 2 ;;
+      --replace) replace=1; shift ;;
+      --agent) names+=("$2"); shift 2 ;;
+      *) die "unknown option for mesh-codex-open: $1" ;;
+    esac
+  done
+
+  local launch_cmd
+  printf -v launch_cmd 'cd %q && bash ./install.sh && ./bin/mesh-codex --session %q --cwd %q --approval %q --sandbox %q --detach' \
+    "$cwd" "$session_name" "$cwd" "$approval" "$sandbox"
+  if [[ "$replace" == "1" ]]; then
+    launch_cmd+=" --replace"
+  fi
+
+  local name
+  for name in "${names[@]}"; do
+    printf -v launch_cmd '%s --agent %q' "$launch_cmd" "$name"
+  done
+  if [[ "${#names[@]}" -eq 0 ]]; then
+    printf -v launch_cmd '%s --count %q' "$launch_cmd" "$count"
+  fi
+  printf -v launch_cmd '%s && exec tmux attach-session -t %q' "$launch_cmd" "$session_name"
+
+  local escaped
+  escaped="$(escape_applescript_string "$launch_cmd")"
+  osascript >/dev/null <<EOF
+tell application "Terminal"
+  activate
+  do script "$escaped"
+end tell
+EOF
+
+  printf 'opened Codex mesh session %s in Terminal.app\n' "$session_name"
+}
+
+main "$@"

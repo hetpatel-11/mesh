@@ -7,8 +7,8 @@ MESH_BIN="${ROOT}/mesh"
 usage() {
   cat <<EOF
 Usage:
-  mesh-codex [--session NAME] [--count N] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace]
-  mesh-codex [--session NAME] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace] --agent NAME [--agent NAME ...]
+  mesh-codex [--session NAME] [--count N] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace] [--attach|--detach]
+  mesh-codex [--session NAME] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace] [--attach|--detach] --agent NAME [--agent NAME ...]
   mesh-codex [--help]
 
 Defaults:
@@ -36,6 +36,7 @@ main() {
   local approval="never"
   local sandbox="workspace-write"
   local replace=0
+  local attach_mode="attach"
   local names=()
 
   while [[ $# -gt 0 ]]; do
@@ -47,6 +48,8 @@ main() {
       --approval) approval="$2"; shift 2 ;;
       --sandbox) sandbox="$2"; shift 2 ;;
       --replace) replace=1; shift ;;
+      --attach) attach_mode="attach"; shift ;;
+      --detach) attach_mode="detach"; shift ;;
       --agent) names+=("$2"); shift 2 ;;
       *) die "unknown option for mesh-codex: $1" ;;
     esac
@@ -70,6 +73,11 @@ main() {
   local args=("$MESH_BIN" workspace --session "$session_name" --cwd "$cwd")
   if [[ "$replace" == "1" ]]; then
     args+=(--replace)
+  fi
+  if [[ "$attach_mode" == "detach" ]]; then
+    args+=(--detach)
+  else
+    args+=(--attach)
   fi
 
   local name
