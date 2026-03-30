@@ -29,6 +29,7 @@ That installs:
 
 - `~/.mesh/tmux.conf`
 - `~/.local/bin/mesh`
+- `~/.local/bin/mesh-codex`
 - a managed source block in `~/.config/tmux/tmux.conf`
 
 Then start tmux or reload it:
@@ -63,6 +64,13 @@ Resolve a target before acting on it:
 
 ```bash
 mesh resolve codex
+```
+
+Subcommand help works directly now:
+
+```bash
+mesh workspace --help
+mesh assign --help
 ```
 
 Read a pane before writing:
@@ -135,6 +143,21 @@ Spawn a worker pane to the right and name it:
 
 ```bash
 mesh spawn --title codex --cwd "$PWD" --right -- codex
+```
+
+Boot an all-Codex workspace from a shell with one command:
+
+```bash
+mesh-codex --count 5 --replace
+```
+
+Or name the Codex panes explicitly:
+
+```bash
+mesh-codex --session review --replace \
+  --agent lead \
+  --agent codex-01 \
+  --agent codex-02
 ```
 
 Create a real multi-agent workspace in one shot from inside tmux:

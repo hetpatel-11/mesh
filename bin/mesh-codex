@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MESH_BIN="${ROOT}/mesh"
+
+usage() {
+  cat <<EOF
+Usage:
+  mesh-codex [--session NAME] [--count N] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace]
+  mesh-codex [--session NAME] [--cwd DIR] [--approval POLICY] [--sandbox MODE] [--replace] --agent NAME [--agent NAME ...]
+  mesh-codex [--help]
+
+Defaults:
+  session: agents
+  count: 3
+  cwd: current working directory
+  approval: never
+  sandbox: workspace-write
+
+Examples:
+  mesh-codex --count 5 --replace
+  mesh-codex --session review --agent lead --agent codex-01 --agent codex-02 --replace
+EOF
+}
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+main() {
+  local session_name="agents"
+  local count=3
+  local cwd="${PWD}"
+  local approval="never"
+  local sandbox="workspace-write"
+  local replace=0
+  local names=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help) usage; return ;;
+      --session) session_name="$2"; shift 2 ;;
+      --count) count="$2"; shift 2 ;;
+      --cwd) cwd="$2"; shift 2 ;;
+      --approval) approval="$2"; shift 2 ;;
+      --sandbox) sandbox="$2"; shift 2 ;;
+      --replace) replace=1; shift ;;
+      --agent) names+=("$2"); shift 2 ;;
+      *) die "unknown option for mesh-codex: $1" ;;
+    esac
+  done
+
+  [[ "$count" =~ ^[0-9]+$ ]] || die "--count must be a positive integer"
+  (( count >= 1 )) || die "--count must be at least 1"
+  [[ -x "$MESH_BIN" ]] || die "mesh binary not found at $MESH_BIN"
+
+  if [[ "${#names[@]}" -eq 0 ]]; then
+    names+=("lead")
+    local i
+    for (( i = 1; i < count; i++ )); do
+      names+=("codex-$(printf '%02d' "$i")")
+    done
+  fi
+
+  local codex_cmd
+  printf -v codex_cmd 'codex --ask-for-approval %q --sandbox %q -C %q' "$approval" "$sandbox" "$cwd"
+
+  local args=("$MESH_BIN" workspace --session "$session_name" --cwd "$cwd")
+  if [[ "$replace" == "1" ]]; then
+    args+=(--replace)
+  fi
+
+  local name
+  for name in "${names[@]}"; do
+    args+=(--agent "${name}:${codex_cmd}")
+  done
+
+  exec "${args[@]}"
+}
+
+main "$@"

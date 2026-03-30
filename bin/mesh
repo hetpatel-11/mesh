@@ -36,6 +36,125 @@ Targets:
 EOF
 }
 
+subcommand_usage() {
+  local subcommand="$1"
+  case "$subcommand" in
+    list)
+      cat <<EOF
+Usage:
+  $PROGRAM list [--json]
+EOF
+      ;;
+    resolve)
+      cat <<EOF
+Usage:
+  $PROGRAM resolve <target>
+EOF
+      ;;
+    read)
+      cat <<EOF
+Usage:
+  $PROGRAM read <target> [--lines N]
+EOF
+      ;;
+    context)
+      cat <<EOF
+Usage:
+  $PROGRAM context <target> [--lines N] [--all]
+EOF
+      ;;
+    changes)
+      cat <<EOF
+Usage:
+  $PROGRAM changes <target> [--lines N]
+EOF
+      ;;
+    summary)
+      cat <<EOF
+Usage:
+  $PROGRAM summary <target> [--lines N] [--all]
+EOF
+      ;;
+    log)
+      cat <<EOF
+Usage:
+  $PROGRAM log <target> [--lines N]
+EOF
+      ;;
+    follow)
+      cat <<EOF
+Usage:
+  $PROGRAM follow <target> [--lines N] [--interval N]
+EOF
+      ;;
+    send)
+      cat <<EOF
+Usage:
+  $PROGRAM send [--force] <target> <text>
+EOF
+      ;;
+    ask)
+      cat <<EOF
+Usage:
+  $PROGRAM ask [--force] <target> <text>
+EOF
+      ;;
+    assign)
+      cat <<EOF
+Usage:
+  $PROGRAM assign [--force] [--lines N] [--changes N] <target> <instruction>
+EOF
+      ;;
+    broadcast)
+      cat <<EOF
+Usage:
+  $PROGRAM broadcast --force [--except <target>] <text>
+EOF
+      ;;
+    keys)
+      cat <<EOF
+Usage:
+  $PROGRAM keys <target> <key...>
+EOF
+      ;;
+    name)
+      cat <<EOF
+Usage:
+  $PROGRAM name <target> <title>
+EOF
+      ;;
+    spawn)
+      cat <<EOF
+Usage:
+  $PROGRAM spawn [--title NAME] [--cwd DIR] [--right|--down] -- <command...>
+EOF
+      ;;
+    workspace|swarm)
+      cat <<EOF
+Usage:
+  $PROGRAM workspace [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace]
+  $PROGRAM workspace [--session NAME] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace] --agent title:command [--agent title:command ...]
+EOF
+      ;;
+    focus)
+      cat <<EOF
+Usage:
+  $PROGRAM focus <target>
+EOF
+      ;;
+    doctor)
+      cat <<EOF
+Usage:
+  $PROGRAM doctor
+EOF
+      ;;
+    *)
+      usage
+      return 1
+      ;;
+  esac
+}
+
 die() {
   printf '%s\n' "$*" >&2
   exit 1
@@ -421,6 +540,7 @@ cmd_list() {
   local json=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage list; return ;;
       --json) json=1 ;;
       *) die "unknown option for list: $1" ;;
     esac
@@ -440,6 +560,7 @@ cmd_read() {
   local lines=80
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage read; return ;;
       --lines) lines="$2"; shift ;;
       -* ) die "unknown option for read: $1" ;;
       * ) target="$1" ;;
@@ -468,6 +589,7 @@ cmd_context() {
   local include_target=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage context; return ;;
       --lines) lines="$2"; shift 2 ;;
       --all) include_target=1; shift ;;
       -* ) die "unknown option for context: $1" ;;
@@ -512,6 +634,7 @@ cmd_summary() {
   local include_target=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage summary; return ;;
       --lines) lines="$2"; shift 2 ;;
       --all) include_target=1; shift ;;
       -* ) die "unknown option for summary: $1" ;;
@@ -531,6 +654,7 @@ cmd_changes() {
   local lines=20
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage changes; return ;;
       --lines) lines="$2"; shift 2 ;;
       -* ) die "unknown option for changes: $1" ;;
       * ) target="$1"; shift ;;
@@ -549,6 +673,7 @@ cmd_log() {
   local lines=80
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage log; return ;;
       --lines) lines="$2"; shift 2 ;;
       -* ) die "unknown option for log: $1" ;;
       * ) target="$1"; shift ;;
@@ -570,6 +695,7 @@ cmd_follow() {
   local interval=1
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage follow; return ;;
       --lines) lines="$2"; shift 2 ;;
       --interval) interval="$2"; shift 2 ;;
       -* ) die "unknown option for follow: $1" ;;
@@ -605,6 +731,7 @@ cmd_assign() {
   local change_lines=20
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage assign; return ;;
       --force) force=1; shift ;;
       --lines) lines="$2"; shift 2 ;;
       --changes) change_lines="$2"; shift 2 ;;
@@ -634,6 +761,14 @@ cmd_send_common() {
   local force=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help)
+        if [[ "$submit" == "1" ]]; then
+          subcommand_usage ask
+        else
+          subcommand_usage send
+        fi
+        return
+        ;;
       --force) force=1; shift ;;
       * ) break ;;
     esac
@@ -660,6 +795,7 @@ cmd_broadcast() {
   local except=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage broadcast; return ;;
       --force) force=1; shift ;;
       --except) except="$2"; shift 2 ;;
       * ) break ;;
@@ -688,6 +824,10 @@ cmd_broadcast() {
 }
 
 cmd_keys() {
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    subcommand_usage keys
+    return
+  fi
   [[ $# -ge 2 ]] || die "keys requires a target and at least one key"
   require_tmux
   local pane_id
@@ -697,6 +837,10 @@ cmd_keys() {
 }
 
 cmd_name() {
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    subcommand_usage name
+    return
+  fi
   [[ $# -eq 2 ]] || die "name requires a target and a title"
   require_tmux
   local pane_id
@@ -705,6 +849,10 @@ cmd_name() {
 }
 
 cmd_focus() {
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    subcommand_usage focus
+    return
+  fi
   [[ $# -eq 1 ]] || die "focus requires a target"
   require_tmux
   local pane_id
@@ -718,6 +866,7 @@ cmd_spawn() {
   local direction="right"
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage spawn; return ;;
       --title) title="$2"; shift 2 ;;
       --cwd) cwd="$2"; shift 2 ;;
       --right) direction="right"; shift ;;
@@ -824,6 +973,7 @@ cmd_workspace() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -h|--help) subcommand_usage workspace; return ;;
       --session) session_name="$2"; session_explicit=1; shift 2 ;;
       --count) count="$2"; shift 2 ;;
       --cmd) default_cmd="$2"; shift 2 ;;
@@ -1060,6 +1210,13 @@ main() {
   [[ -n "$command" ]] || { usage; exit 1; }
   shift || true
   case "$command" in
+    help)
+      if [[ $# -gt 0 ]]; then
+        subcommand_usage "$1"
+      else
+        usage
+      fi
+      ;;
     list) cmd_list "$@" ;;
     resolve) cmd_resolve "$@" ;;
     read) cmd_read "$@" ;;

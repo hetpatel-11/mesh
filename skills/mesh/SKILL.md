@@ -5,6 +5,7 @@ Use `mesh` when one coding agent needs to coordinate another through tmux.
 Tool selection:
 
 - If the current repo contains `./bin/mesh`, prefer that exact binary over a globally installed `mesh`.
+- If the current repo contains `./bin/mesh-codex`, prefer that launcher for a fresh all-Codex workspace from a shell.
 - If `mesh doctor` says the repo-local binary differs from the installed one, use `./bin/mesh` or tell the human to run `bash ./install.sh`.
 
 Preferred loop:
@@ -30,6 +31,7 @@ Rules:
 - When the lead hands off work, prefer `mesh assign <target> "<instruction>"` instead of raw `mesh ask` so the worker receives sibling context and live repo changes with the assignment.
 - Use pane titles like `claude`, `codex`, or `reviewer` so targets stay stable.
 - Prefer `mesh spawn --title <name> -- <command>` when starting a new worker.
+- For a fresh Codex-only workspace from a shell, prefer `./bin/mesh-codex --count <n> --replace` instead of synthesizing the command yourself.
 - For larger live layouts, use `mesh workspace --session <name> --count <n> --cmd zsh` from inside tmux.
 - Inside tmux, `mesh workspace` keeps the current pane as the lead and expands around it instead of switching the human away.
 - Outside tmux on macOS, `mesh workspace` opens the new session in Terminal.app by default so the panes are visible, but that does not preserve the current lead session.
