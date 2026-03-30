@@ -1,5 +1,7 @@
 # mesh
 
+One lead agent, many visible workers, real communication through tmux.
+
 `mesh` is a tmux wrapper for local coding-agent swarms.
 
 The simplest way to understand it is this: `mesh` lets one coding agent talk to another through real terminal panes. For example, you can run Claude Code as the lead, open Codex workers beside it, and have Claude send work to Codex without hiding anything in the background.
