@@ -949,6 +949,27 @@ mesh_window_name() {
   printf 'mesh-%02d\n' "$1"
 }
 
+sanitize_title_prefix() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs '[:alnum:]-' '-' | sed 's/^-*//; s/-*$//'
+}
+
+default_worker_prefix() {
+  local command="$1"
+  local first_word="${command%% *}"
+  first_word="${first_word#\"}"
+  first_word="${first_word%\'}"
+  first_word="${first_word#\'}"
+  first_word="${first_word%\"}"
+  first_word="$(basename "$first_word")"
+  local prefix
+  prefix="$(sanitize_title_prefix "$first_word")"
+  case "$prefix" in
+    ""|sh|bash|zsh|fish|tmux|screen) printf 'agent\n' ;;
+    claude-code) printf 'claude\n' ;;
+    *) printf '%s\n' "$prefix" ;;
+  esac
+}
+
 lock_window_name() {
   local target="$1"
   local name="$2"
@@ -1041,14 +1062,16 @@ cmd_workspace() {
 
   if [[ "${#specs[@]}" -eq 0 ]]; then
     local first_title="lead"
+    local worker_prefix
+    worker_prefix="$(default_worker_prefix "$default_cmd")"
     if [[ "$inside_tmux" != "1" || "$attach" != "1" ]]; then
       specs+=("${first_title}:$default_cmd")
     else
       specs+=("${first_title}:__mesh_current_pane__")
     fi
     local i
-    for (( i = 2; i <= count; i++ )); do
-      specs+=("agent-$(printf '%02d' "$i"):$default_cmd")
+    for (( i = 1; i < count; i++ )); do
+      specs+=("${worker_prefix}-$(printf '%02d' "$i"):$default_cmd")
     done
   fi
 

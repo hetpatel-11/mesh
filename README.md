@@ -15,6 +15,7 @@ That same workflow scales beyond two agents. You can use one lead agent and many
 - work can scale from one lead plus one worker to larger live workspaces spread across multiple tmux windows
 - handoffs are more informed because workers can receive sibling context, session summaries, and live repo-change snapshots
 - Codex, Claude Code, and other terminal coding agents can all participate, even when some environments need a launcher workaround
+- worker titles are inferred from the command you launch, so a Codex workspace gets names like `codex-01` instead of generic pane labels
 
 ## What It Does
 
@@ -263,6 +264,8 @@ mesh workspace --session agents --count 10 --cmd zsh --detach
 Outside tmux on macOS, the default non-detached behavior is to open the new session in Terminal.app so the human sees it immediately.
 
 If an agent creates a workspace and the human should see it live, prefer `mesh show <session>` instead of printing raw tmux switching commands back to the user.
+
+When `mesh workspace` builds workers from a command like `codex` or `claude`, it now infers worker titles from that command automatically, so you get names like `codex-01`, `codex-02`, or `claude-01` by default instead of generic `agent-*` titles.
 
 Large workspaces spill into additional `mesh-*` windows automatically based on the current tmux window size, so `mesh` does not cram more panes into a window than the view can reasonably hold:
 

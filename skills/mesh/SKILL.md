@@ -29,6 +29,7 @@ Use `mesh` to coordinate real tmux-backed agent sessions.
 - Tell the human to start `tmux` and relaunch the lead coding CLI inside tmux if the lead was started outside tmux and the task depends on preserving that lead pane.
 - Use `mesh workspace --session <name> --count <n> --cmd zsh` for larger live layouts from inside tmux.
 - Expect `mesh workspace` to keep the current pane as the visible lead when it is run from inside tmux.
+- Unless the human explicitly wants the workspace in the background, keep it visible and run `mesh show <session>` immediately after creating it.
 - Use `--detach` only when the workspace should intentionally stay off-screen.
 - Use `mesh show <session>` when the workspace exists and the human needs to see it live.
 - Expect `mesh workspace` to split large swarms across multiple `mesh-*` windows when one window would be too crowded.
@@ -48,7 +49,7 @@ Use `mesh` to coordinate real tmux-backed agent sessions.
 - Prefer `mesh spawn --title <name> -- <command>` when starting one new worker.
 - Prefer `./bin/mesh-codex --count <n> --replace` for a fresh Codex-only workspace from a normal shell.
 - Prefer `./bin/mesh-codex-open --count <n> --replace` from a blocked Codex sandbox on macOS.
-- Use stable pane titles such as `lead`, `codex-01`, `codex-02`, `claude`, or `reviewer`.
+- Expect default worker titles to be inferred from the launched command, such as `codex-01` or `claude-01`. Use explicit titles only when you need something more specific.
 - Rename ambiguous pane titles instead of guessing.
 
 ## Failure rules
