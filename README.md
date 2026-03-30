@@ -6,6 +6,10 @@ The simplest way to understand it is this: `mesh` lets one coding agent talk to 
 
 That same workflow scales beyond two agents. You can use one lead agent and many workers in the same tmux workspace, keep every session visible, and let the human watch, interrupt, or type in any pane at any time. `mesh` is built for people who want multiple coding agents working on the same problem, but still want the work to stay understandable and under human control.
 
+## Demo
+
+https://github.com/user-attachments/assets/bb58b668-06f9-4458-a10c-bf767e538d2b
+
 ## Why mesh
 
 `mesh` is not just a way to type into another pane. It is built around the real workflow people want when they use multiple coding agents together:
@@ -28,10 +32,6 @@ That same workflow scales beyond two agents. You can use one lead agent and many
 - gives any pane a grouped sibling-context snapshot with `mesh context`
 - keeps clean snapshot logs so agent state can be inspected after the fact
 - adds a safety check so blind writes require either a recent read or an explicit `--force`
-
-## Demo
-
-https://github.com/user-attachments/assets/bb58b668-06f9-4458-a10c-bf767e538d2b
 
 ## Install
 
