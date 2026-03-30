@@ -70,13 +70,25 @@ If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh works
 
 Humans do not need a skill to use `mesh`.
 
-The skill is only for coding agents that should learn the expected tmux workflow and avoid bad fallbacks. The installer places a local copy here:
+If you want a coding agent to learn the mesh workflow, install the skill through the skills CLI:
+
+```bash
+npx skills add hetpatel-11/mesh --skill mesh
+```
+
+To target specific agents:
+
+```bash
+npx skills add hetpatel-11/mesh --skill mesh -a claude-code -a codex
+```
+
+The installer also places a local fallback copy here:
 
 ```bash
 ~/.mesh/skills/mesh/SKILL.md
 ```
 
-Use that file when you want Claude Code, Codex, or another coding agent to operate `mesh` directly.
+Use the local file only when you want to point an agent at the skill manually.
 
 ## Codex Note
 
