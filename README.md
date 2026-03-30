@@ -37,6 +37,12 @@ Then start tmux or reload it:
 tmux source-file ~/.config/tmux/tmux.conf
 ```
 
+After pulling new changes to this repo, rerun the installer so the copy in `~/.local/bin/mesh` stays in sync:
+
+```bash
+bash ./install.sh
+```
+
 For lead-driven agent work, start tmux first and launch your lead coding agent inside that tmux session:
 
 ```bash

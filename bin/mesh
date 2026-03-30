@@ -1011,7 +1011,13 @@ cmd_workspace() {
 }
 
 cmd_doctor() {
+  local self_path repo_mesh sync_state
+  self_path="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+  repo_mesh="$(pwd)/bin/mesh"
+  sync_state="unknown"
+
   printf 'program: %s\n' "$PROGRAM"
+  printf 'binary: %s\n' "$self_path"
   if command -v tmux >/dev/null 2>&1; then
     printf 'tmux: %s\n' "$(command -v tmux)"
   else
@@ -1031,6 +1037,14 @@ cmd_doctor() {
     printf 'managed-layer: installed\n'
   else
     printf 'managed-layer: missing\n'
+  fi
+  if [[ -f "$repo_mesh" ]]; then
+    if cmp -s "$self_path" "$repo_mesh"; then
+      sync_state="repo-local binary matches"
+    else
+      sync_state="repo-local binary differs; use ./bin/mesh or rerun bash ./install.sh"
+    fi
+    printf 'repo-sync: %s\n' "$sync_state"
   fi
   printf 'logs: %s\n' "$LOG_DIR"
   if [[ -n "${TMUX:-}" ]]; then

@@ -2,6 +2,11 @@
 
 Use `mesh` when one coding agent needs to coordinate another through tmux.
 
+Tool selection:
+
+- If the current repo contains `./bin/mesh`, prefer that exact binary over a globally installed `mesh`.
+- If `mesh doctor` says the repo-local binary differs from the installed one, use `./bin/mesh` or tell the human to run `bash ./install.sh`.
+
 Preferred loop:
 
 1. `mesh list`
@@ -15,6 +20,8 @@ Preferred loop:
 Rules:
 
 - If the human started their lead coding CLI outside tmux, prefer telling them to run `tmux`, restart the lead coding CLI inside tmux, and then retry `mesh workspace`.
+- Do not substitute built-in subagents, delegated helper agents, or any non-tmux fallback for real mesh workers. If tmux socket access is blocked or mesh cannot create a real workspace, say that clearly and stop.
+- Do not claim success unless a real tmux-backed mesh workspace or worker pane actually exists.
 - Read before writing unless you intentionally use `--force`.
 - Use `mesh context <self> --lines <n>` to pull recent output from sibling panes before coordinating or reporting status.
 - Use `mesh summary <self> --lines <n>` when you want a quicker per-agent status view instead of a full pane dump.
