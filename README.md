@@ -86,6 +86,12 @@ mesh workspace --help
 mesh assign --help
 ```
 
+If a workspace exists but is not the visible session yet, bring it onscreen with:
+
+```bash
+mesh show agents
+```
+
 Read a pane before writing:
 
 ```bash
@@ -192,6 +198,8 @@ mesh workspace --session agents --count 10 --cmd zsh --detach
 ```
 
 Outside tmux on macOS, the default non-detached behavior is to open the new session in Terminal.app so the human sees it immediately.
+
+If an agent creates a workspace and the human should see it live, prefer `mesh show <session>` instead of printing raw tmux switching commands back to the user.
 
 Large workspaces spill into additional `mesh-*` windows automatically based on the current tmux window size, so `mesh` does not cram more panes into a window than the view can reasonably hold:
 

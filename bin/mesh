@@ -29,6 +29,7 @@ Usage:
   $PROGRAM workspace [--session NAME] [--count N] [--cmd CMD] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace]
   $PROGRAM workspace [--session NAME] [--cwd DIR] [--width N] [--height N] [--per-window N] [--detach] [--replace] --agent title:command [--agent title:command ...]
   $PROGRAM focus <target>
+  $PROGRAM show <session>
   $PROGRAM doctor
 
 Targets:
@@ -142,6 +143,12 @@ Usage:
   $PROGRAM focus <target>
 EOF
       ;;
+    show)
+      cat <<EOF
+Usage:
+  $PROGRAM show <session>
+EOF
+      ;;
     doctor)
       cat <<EOF
 Usage:
@@ -225,7 +232,7 @@ show_session_in_terminal() {
 
   local tmux_bin attach_cmd escaped
   tmux_bin="$(command -v tmux)"
-  attach_cmd="export PATH=\"$(dirname "$tmux_bin"):\$PATH\"; exec \"$tmux_bin\" attach-session -t \"$session_name\""
+  attach_cmd="export PATH=\"$(dirname "$tmux_bin"):\$PATH\"; \"$tmux_bin\" select-window -t \"$session_name:$(mesh_window_name 1)\" >/dev/null 2>&1 || true; exec \"$tmux_bin\" attach-session -t \"$session_name\""
   escaped="$(escape_applescript_string "$attach_cmd")"
   osascript >/dev/null <<EOF
 tell application "Terminal"
@@ -233,6 +240,20 @@ tell application "Terminal"
   do script "$escaped"
 end tell
 EOF
+}
+
+show_session_to_human() {
+  local session_name="$1"
+  tmux_cmd select-window -t "${session_name}:$(mesh_window_name 1)" >/dev/null 2>&1 || true
+  if [[ -n "${TMUX:-}" ]]; then
+    tmux_cmd switch-client -t "$session_name" >/dev/null 2>&1 && return 0
+  fi
+  show_session_in_terminal "$session_name" && return 0
+  if [[ -t 0 && -t 1 ]]; then
+    tmux_cmd attach-session -t "$session_name"
+    return 0
+  fi
+  return 1
 }
 
 session_log_dir() {
@@ -860,6 +881,22 @@ cmd_focus() {
   tmux_cmd select-pane -t "$pane_id"
 }
 
+cmd_show() {
+  if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    subcommand_usage show
+    return
+  fi
+  [[ $# -eq 1 ]] || die "show requires a session name"
+  require_tmux
+  local session_name="$1"
+  tmux_cmd has-session -t "$session_name" >/dev/null 2>&1 || die "session '$session_name' not found"
+  if show_session_to_human "$session_name"; then
+    note "showing session=${session_name} visible-window=$(mesh_window_name 1)"
+    return
+  fi
+  printf 'session=%s attach=%s\n' "$session_name" "tmux attach-session -t $session_name"
+}
+
 cmd_spawn() {
   local title=""
   local cwd="${PWD}"
@@ -1137,22 +1174,19 @@ cmd_workspace() {
       fi
       return
     fi
-    if show_session_in_terminal "$session_name"; then
-      note "opened session=${session_name} in a new Terminal window"
+    if show_session_to_human "$session_name"; then
+      note "opened session=${session_name} visible-window=$(mesh_window_name 1) in a new Terminal window"
       note "the current lead was started outside tmux, so it is not part of that visible workspace. For a lead-preserving workspace, start tmux first and relaunch the lead inside it."
-      return
-    fi
-    if [[ -t 0 && -t 1 ]]; then
-      tmux_cmd attach-session -t "$session_name"
       return
     fi
   fi
 
-  printf 'session=%s panes=%s windows=%s attach=%s\n' \
+  printf 'session=%s panes=%s windows=%s attach=%s show=%s\n' \
     "$session_name" \
     "${#specs[@]}" \
     "$mesh_windows" \
-    "tmux attach-session -t $session_name"
+    "tmux attach-session -t $session_name" \
+    "$PROGRAM show $session_name"
   tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{window_name}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}' \
     | while IFS='|' read -r pane_id window_index pane_index pane_title pane_command pane_path; do
         [[ "$window_index" == mesh-* ]] || continue
@@ -1234,6 +1268,7 @@ main() {
     spawn) cmd_spawn "$@" ;;
     workspace|swarm) cmd_workspace "$@" ;;
     focus) cmd_focus "$@" ;;
+    show) cmd_show "$@" ;;
     doctor) cmd_doctor ;;
     help|-h|--help) usage ;;
     *) die "unknown command: $command" ;;
