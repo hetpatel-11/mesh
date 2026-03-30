@@ -19,6 +19,7 @@ SKILL_DIR="${INSTALL_ROOT}/skills/mesh"
 SKILL_PATH="${SKILL_DIR}/SKILL.md"
 BASE_URL="${MESH_BASE_URL:-https://het-patel.dev/mesh}"
 TMP_DIR=""
+ASSET_ROOT=""
 
 say() {
   printf '[mesh] %s\n' "$*"
@@ -50,8 +51,7 @@ download_asset() {
   curl -fsSL "${BASE_URL}${remote_path}" -o "$local_path"
 }
 
-asset_path() {
-  local relative_path="$1"
+prepare_assets() {
   if need_download_assets; then
     require_curl
     if [[ -z "$TMP_DIR" ]]; then
@@ -65,11 +65,16 @@ asset_path() {
       download_asset "/bin/mesh-codex-open" "$TMP_DIR/bin/mesh-codex-open"
       download_asset "/skills/mesh/SKILL.md" "$TMP_DIR/skills/mesh/SKILL.md"
     fi
-    printf '%s/%s\n' "$TMP_DIR" "$relative_path"
-    return
+    ASSET_ROOT="$TMP_DIR"
+  else
+    ASSET_ROOT="$ROOT"
   fi
 
-  printf '%s/%s\n' "$ROOT" "$relative_path"
+  [[ -f "$ASSET_ROOT/tmux.conf" ]] || { say "missing asset: $ASSET_ROOT/tmux.conf"; exit 1; }
+  [[ -f "$ASSET_ROOT/bin/mesh" ]] || { say "missing asset: $ASSET_ROOT/bin/mesh"; exit 1; }
+  [[ -f "$ASSET_ROOT/bin/mesh-codex" ]] || { say "missing asset: $ASSET_ROOT/bin/mesh-codex"; exit 1; }
+  [[ -f "$ASSET_ROOT/bin/mesh-codex-open" ]] || { say "missing asset: $ASSET_ROOT/bin/mesh-codex-open"; exit 1; }
+  [[ -f "$ASSET_ROOT/skills/mesh/SKILL.md" ]] || { say "missing asset: $ASSET_ROOT/skills/mesh/SKILL.md"; exit 1; }
 }
 
 ensure_tmux() {
@@ -114,14 +119,15 @@ EOF
 
 main() {
   ensure_tmux
+  prepare_assets
 
   mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$SKILL_DIR"
   mkdir -p "${INSTALL_ROOT}/logs" "${INSTALL_ROOT}/state"
-  install -m 0644 "$(asset_path "tmux.conf")" "$LAYER_CONF"
-  install -m 0755 "$(asset_path "bin/mesh")" "$BRIDGE_BIN"
-  install -m 0755 "$(asset_path "bin/mesh-codex")" "$CODEX_LAUNCHER_BIN"
-  install -m 0755 "$(asset_path "bin/mesh-codex-open")" "$CODEX_OPEN_BIN"
-  install -m 0644 "$(asset_path "skills/mesh/SKILL.md")" "$SKILL_PATH"
+  install -m 0644 "$ASSET_ROOT/tmux.conf" "$LAYER_CONF"
+  install -m 0755 "$ASSET_ROOT/bin/mesh" "$BRIDGE_BIN"
+  install -m 0755 "$ASSET_ROOT/bin/mesh-codex" "$CODEX_LAUNCHER_BIN"
+  install -m 0755 "$ASSET_ROOT/bin/mesh-codex-open" "$CODEX_OPEN_BIN"
+  install -m 0644 "$ASSET_ROOT/skills/mesh/SKILL.md" "$SKILL_PATH"
   xattr -d com.apple.provenance "$BRIDGE_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_LAUNCHER_BIN" 2>/dev/null || true
   xattr -d com.apple.provenance "$CODEX_OPEN_BIN" 2>/dev/null || true
