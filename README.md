@@ -78,18 +78,6 @@ mesh workspace --session agents --count 5 --cmd zsh
 
 If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will try to open the new workspace in a visible Terminal window on macOS. That gets the panes on screen, but your current lead is still outside tmux. For the best lead-preserving behavior, start tmux first and launch the lead inside it.
 
-## Skill
-
-Humans do not need a skill to use `mesh`.
-
-The installer also places a local fallback copy here:
-
-```bash
-~/.mesh/skills/mesh/SKILL.md
-```
-
-Use the local file only when you want to point an agent at the skill manually.
-
 ## Codex Note
 
 Some Codex environments can run shell commands locally but still block tmux socket creation or connection inside the Codex tool runner. When that happens, `mesh` cannot create a real tmux-backed workspace from inside that Codex session.
