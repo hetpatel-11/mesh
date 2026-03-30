@@ -29,6 +29,10 @@ That same workflow scales beyond two agents. You can use one lead agent and many
 - keeps clean snapshot logs so agent state can be inspected after the fact
 - adds a safety check so blind writes require either a recent read or an explicit `--force`
 
+## Demo
+
+https://github.com/user-attachments/assets/bb58b668-06f9-4458-a10c-bf767e538d2b
+
 ## Install
 
 The public one-line install is:
