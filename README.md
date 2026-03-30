@@ -35,11 +35,13 @@ Then start tmux or reload it:
 tmux source-file ~/.config/tmux/tmux.conf
 ```
 
-If you launched your lead coding agent outside tmux, start tmux first before using `mesh` for agent-to-agent work:
+For lead-driven agent work, start tmux first and launch your lead coding agent inside that tmux session:
 
 ```bash
 tmux
 ```
+
+If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will stop and tell you to restart inside tmux instead of silently creating a hidden session.
 
 ## Bridge Commands
 
@@ -85,25 +87,25 @@ Spawn a worker pane to the right and name it:
 mesh spawn --title codex --cwd "$PWD" --right -- codex
 ```
 
-Create a real multi-agent workspace in one shot:
+Create a real multi-agent workspace in one shot from inside tmux:
 
 ```bash
 mesh workspace --session agents --count 10 --cmd zsh
 ```
 
-`workspace` attaches by default, so the layout should come on screen immediately. If you want it created in the background instead:
+Inside tmux, `mesh workspace` keeps the current pane as the lead, leaves it on screen, and expands the workspace around it. If you want a background workspace instead:
 
 ```bash
 mesh workspace --session agents --count 10 --cmd zsh --detach
 ```
 
-Scale beyond 10 automatically by spilling into additional tmux windows:
+Large workspaces spill into additional `mesh-*` windows automatically based on the current tmux window size, so `mesh` does not cram more panes into a window than the view can reasonably hold:
 
 ```bash
 mesh workspace --session agents --count 24 --cmd zsh --per-window 8
 ```
 
-Create a named multi-agent workspace with real commands:
+Create a named multi-agent workspace with real commands. When you run this inside tmux, the first agent title names the current lead pane; it does not replace the lead process you already started:
 
 ```bash
 mesh workspace --session agents --replace \
@@ -146,3 +148,4 @@ The wrapper stays close to tmux because real coding agents already run well in t
 - built-in worker spawn helpers
 - a local override layer for custom tmux tweaks
 - one-command workspace layouts for live multi-agent sessions of arbitrary size
+- current-pane-first workspace bootstrapping so the human always keeps the lead in view

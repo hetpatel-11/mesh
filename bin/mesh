@@ -33,6 +33,10 @@ die() {
   exit 1
 }
 
+note() {
+  printf '%s\n' "$*"
+}
+
 require_tmux() {
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
   [[ -n "${TMUX:-}" ]] || tmux_cmd ls >/dev/null 2>&1 || die "tmux server is not running"
@@ -313,6 +317,58 @@ current_window_id() {
   tmux_cmd display-message -p -t "$target" '#{window_id}'
 }
 
+current_session_name() {
+  local target="$1"
+  tmux_cmd display-message -p -t "$target" '#{session_name}'
+}
+
+current_window_size() {
+  local target="$1"
+  tmux_cmd display-message -p -t "$target" '#{window_width}|#{window_height}'
+}
+
+mesh_window_name() {
+  printf 'mesh-%02d\n' "$1"
+}
+
+lock_window_name() {
+  local target="$1"
+  local name="$2"
+  tmux_cmd set-window-option -q -t "$target" automatic-rename off
+  tmux_cmd set-window-option -q -t "$target" allow-rename off
+  tmux_cmd rename-window -t "$target" "$name"
+}
+
+recommended_per_window() {
+  local width="$1"
+  local height="$2"
+  local requested="$3"
+  local min_pane_width=40
+  local min_pane_height=12
+  local cols=$(( width / min_pane_width ))
+  local rows=$(( height / min_pane_height ))
+  (( cols < 1 )) && cols=1
+  (( rows < 1 )) && rows=1
+  local capacity=$(( cols * rows ))
+  (( capacity < 2 )) && capacity=2
+  if (( requested < capacity )); then
+    printf '%s\n' "$requested"
+  else
+    printf '%s\n' "$capacity"
+  fi
+}
+
+collapse_window_to_pane() {
+  local window_target="$1"
+  local keep_pane="$2"
+  local pane_id
+  while IFS= read -r pane_id; do
+    [[ -n "$pane_id" ]] || continue
+    [[ "$pane_id" == "$keep_pane" ]] && continue
+    tmux_cmd kill-pane -t "$pane_id"
+  done < <(tmux_cmd list-panes -t "$window_target" -F '#{pane_id}')
+}
+
 create_workspace_window() {
   local session_name="$1"
   local window_name="$2"
@@ -323,6 +379,7 @@ create_workspace_window() {
 
 cmd_workspace() {
   local session_name="swarm"
+  local session_explicit=0
   local count=10
   local cwd="${PWD}"
   local attach=1
@@ -335,7 +392,7 @@ cmd_workspace() {
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --session) session_name="$2"; shift 2 ;;
+      --session) session_name="$2"; session_explicit=1; shift 2 ;;
       --count) count="$2"; shift 2 ;;
       --cmd) default_cmd="$2"; shift 2 ;;
       --cwd) cwd="$2"; shift 2 ;;
@@ -351,7 +408,6 @@ cmd_workspace() {
   done
 
   command -v tmux >/dev/null 2>&1 || die "tmux is required"
-  [[ -n "$session_name" ]] || die "session name is required"
   [[ "$count" =~ ^[0-9]+$ ]] || die "--count must be a positive integer"
   (( count >= 1 )) || die "--count must be at least 1"
   [[ "$width" =~ ^[0-9]+$ ]] || die "--width must be a positive integer"
@@ -361,19 +417,76 @@ cmd_workspace() {
   (( height >= 24 )) || die "--height must be at least 24"
   (( per_window >= 2 )) || die "--per-window must be at least 2"
 
+  local inside_tmux=0
+  [[ -n "${TMUX:-}" ]] && inside_tmux=1
+  if [[ "$inside_tmux" != "1" && "$attach" == "1" ]]; then
+    die "mesh workspace should be started from inside tmux so your lead agent stays visible. Start tmux, relaunch your coding agent inside it, then retry. Use --detach only if you intentionally want a background workspace."
+  fi
+
   if [[ "${#specs[@]}" -eq 0 ]]; then
-    specs+=("lead:$default_cmd")
+    local first_title="lead"
+    if [[ "$inside_tmux" != "1" || "$attach" != "1" ]]; then
+      specs+=("${first_title}:$default_cmd")
+    else
+      specs+=("${first_title}:__mesh_current_pane__")
+    fi
     local i
     for (( i = 2; i <= count; i++ )); do
       specs+=("agent-$(printf '%02d' "$i"):$default_cmd")
     done
   fi
 
-  if tmux_cmd has-session -t "$session_name" >/dev/null 2>&1; then
-    if [[ "$replace" == "1" ]]; then
-      tmux_cmd kill-session -t "$session_name"
+  local layout_width="$width"
+  local layout_height="$height"
+  local current_pane=""
+  local current_window=""
+  local current_session=""
+  local effective_per_window="$per_window"
+
+  if [[ "$inside_tmux" == "1" && "$attach" == "1" ]]; then
+    current_pane="$(tmux_cmd display-message -p '#{pane_id}')"
+    current_window="$(current_window_id "$current_pane")"
+    current_session="$(current_session_name "$current_pane")"
+
+    if [[ "$session_explicit" == "1" ]]; then
+      if [[ "$session_name" != "$current_session" ]]; then
+        if tmux_cmd has-session -t "$session_name" >/dev/null 2>&1; then
+          die "session '$session_name' already exists; switch to it or choose another name"
+        fi
+        tmux_cmd rename-session -t "$current_session" "$session_name"
+        current_session="$session_name"
+      fi
     else
-      die "session '$session_name' already exists; pass --replace to recreate it"
+      session_name="$current_session"
+    fi
+
+    IFS='|' read -r layout_width layout_height < <(current_window_size "$current_pane")
+    effective_per_window="$(recommended_per_window "$layout_width" "$layout_height" "$per_window")"
+
+    if [[ "$replace" == "1" ]]; then
+      collapse_window_to_pane "$current_window" "$current_pane"
+      local window_id window_name
+      while IFS='|' read -r window_id window_name; do
+        [[ -n "$window_id" ]] || continue
+        [[ "$window_id" == "$current_window" ]] && continue
+        [[ "$window_name" == mesh-* ]] && tmux_cmd kill-window -t "$window_id"
+      done < <(tmux_cmd list-windows -t "$current_session" -F '#{window_id}|#{window_name}')
+    else
+      local existing_panes
+      existing_panes="$(window_pane_count "$current_window")"
+      (( existing_panes == 1 )) || die "current tmux window already has ${existing_panes} panes; use --replace to rebuild the workspace around the current lead pane"
+      local existing_mesh_windows
+      existing_mesh_windows="$(tmux_cmd list-windows -t "$current_session" -F '#{window_name}' | awk '/^mesh-/{count++} END{print count+0}')"
+      (( existing_mesh_windows == 0 )) || die "current session already has a mesh workspace; use --replace to rebuild it around the current lead pane"
+    fi
+  else
+    effective_per_window="$(recommended_per_window "$layout_width" "$layout_height" "$per_window")"
+    if tmux_cmd has-session -t "$session_name" >/dev/null 2>&1; then
+      if [[ "$replace" == "1" ]]; then
+        tmux_cmd kill-session -t "$session_name"
+      else
+        die "session '$session_name' already exists; pass --replace to recreate it"
+      fi
     fi
   fi
 
@@ -388,14 +501,26 @@ cmd_workspace() {
     [[ -n "$title" ]] || die "agent title cannot be empty"
     [[ -n "$command" ]] || die "agent command cannot be empty"
 
+    if [[ "$first" == "1" && "$inside_tmux" == "1" && "$attach" == "1" ]]; then
+      pane_id="$current_pane"
+      window_target="$current_window"
+      window_number=1
+      tmux_cmd select-pane -t "$pane_id" -T "$title"
+      lock_window_name "$window_target" "$(mesh_window_name "$window_number")"
+      first=0
+      continue
+    fi
+
     if [[ "$first" == "1" ]]; then
-      pane_id="$(tmux_cmd new-session -d -P -F '#{pane_id}' -x "$width" -y "$height" -s "$session_name" -n swarm -c "$cwd" "$command")"
+      pane_id="$(tmux_cmd new-session -d -P -F '#{pane_id}' -x "$width" -y "$height" -s "$session_name" -n "$(mesh_window_name 1)" -c "$cwd" "$command")"
       window_target="$(current_window_id "$pane_id")"
+      lock_window_name "$window_target" "$(mesh_window_name 1)"
       first=0
       window_number=1
-    elif [[ "$(window_pane_count "$window_target")" -ge "$per_window" ]]; then
+    elif [[ "$(window_pane_count "$window_target")" -ge "$effective_per_window" ]]; then
       window_number=$((window_number + 1))
-      window_target="$(create_workspace_window "$session_name" "work-${window_number}" "$cwd" "$command")"
+      window_target="$(create_workspace_window "$session_name" "$(mesh_window_name "$window_number")" "$cwd" "$command")"
+      lock_window_name "$window_target" "$(mesh_window_name "$window_number")"
       pane_id="$(tmux_cmd list-panes -t "$window_target" -F '#{pane_id}' | head -n 1)"
     else
       local info target_pane target_width target_height split_flag
@@ -416,36 +541,34 @@ cmd_workspace() {
   while IFS= read -r window_id; do
     [[ -n "$window_id" ]] || continue
     tmux_cmd select-layout -t "$window_id" tiled >/dev/null || true
-  done < <(tmux_cmd list-windows -t "$session_name" -F '#{window_id}')
+  done < <(tmux_cmd list-windows -t "$session_name" -F '#{window_id}|#{window_name}' | awk -F'|' '$2 ~ /^mesh-/ { print $1 }')
 
   tmux_cmd display-message -t "$session_name" "mesh workspace ready: ${#specs[@]} panes"
 
+  local mesh_windows
+  mesh_windows="$(tmux_cmd list-windows -t "$session_name" -F '#{window_name}' | awk '/^mesh-/{count++} END{print count+0}')"
+
   if [[ "$attach" == "1" ]]; then
     if [[ -n "${TMUX:-}" ]]; then
-      tmux_cmd switch-client -t "$session_name"
+      tmux_cmd select-window -t "${session_name}:$(mesh_window_name 1)"
+      [[ -n "$current_pane" ]] && tmux_cmd select-pane -t "$current_pane" >/dev/null 2>&1 || true
+      note "session=${session_name} panes=${#specs[@]} windows=${mesh_windows} visible-window=$(mesh_window_name 1) per-window=${effective_per_window}"
+      if (( mesh_windows > 1 )); then
+        note "agents were split across ${mesh_windows} windows to fit the current tmux size; use Alt-. and Alt-, to move between mesh windows"
+      fi
       return
     fi
-    if [[ -t 0 && -t 1 ]]; then
-      tmux_cmd attach-session -t "$session_name"
-      return
-    fi
-    printf 'session=%s panes=%s windows=%s attach=%s\n' \
-      "$session_name" \
-      "${#specs[@]}" \
-      "$(tmux_cmd list-windows -t "$session_name" | wc -l | tr -d ' ')" \
-      "tmux attach-session -t $session_name"
-    printf 'workspace created, but no interactive terminal was available for auto-attach\n' >&2
-    return
   fi
 
   printf 'session=%s panes=%s windows=%s attach=%s\n' \
     "$session_name" \
     "${#specs[@]}" \
-    "$(tmux_cmd list-windows -t "$session_name" | wc -l | tr -d ' ')" \
+    "$mesh_windows" \
     "tmux attach-session -t $session_name"
-  tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{window_index}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}' \
+  tmux_cmd list-panes -t "$session_name" -F '#{pane_id}|#{window_name}|#{pane_index}|#{pane_title}|#{pane_start_command}|#{pane_current_path}' \
     | while IFS='|' read -r pane_id window_index pane_index pane_title pane_command pane_path; do
-        printf '%-6s %-6s %-16s %-16s %s\n' "$pane_id" "${window_index}.${pane_index}" "$pane_title" "$pane_command" "$pane_path"
+        [[ "$window_index" == mesh-* ]] || continue
+        printf '%-6s %-12s %-16s %-16s %s\n' "$pane_id" "${window_index}.${pane_index}" "$pane_title" "$pane_command" "$pane_path"
       done
 }
 
@@ -470,6 +593,12 @@ cmd_doctor() {
     printf 'managed-layer: installed\n'
   else
     printf 'managed-layer: missing\n'
+  fi
+  if [[ -n "${TMUX:-}" ]]; then
+    printf 'inside-tmux: yes\n'
+    printf 'current-session: %s\n' "$(tmux_cmd display-message -p '#{session_name}')"
+  else
+    printf 'inside-tmux: no\n'
   fi
 }
 
