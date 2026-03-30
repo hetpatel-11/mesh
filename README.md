@@ -21,6 +21,18 @@ The public one-line install is:
 curl -fsSL https://het-patel.dev/mesh/install.sh | bash
 ```
 
+If you want a coding agent to learn the mesh workflow, install the skill right after:
+
+```bash
+npx skills add hetpatel-11/mesh --skill mesh
+```
+
+Or target specific agents:
+
+```bash
+npx skills add hetpatel-11/mesh --skill mesh -a claude-code -a codex
+```
+
 If you prefer cloning the repo first:
 
 ```bash
@@ -69,18 +81,6 @@ If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh works
 ## Skill
 
 Humans do not need a skill to use `mesh`.
-
-If you want a coding agent to learn the mesh workflow, install the skill through the skills CLI:
-
-```bash
-npx skills add hetpatel-11/mesh --skill mesh
-```
-
-To target specific agents:
-
-```bash
-npx skills add hetpatel-11/mesh --skill mesh -a claude-code -a codex
-```
 
 The installer also places a local fallback copy here:
 
