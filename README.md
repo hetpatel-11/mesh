@@ -1,10 +1,10 @@
 # mesh
 
-`mesh` is a tmux wrapper for multi-agent coding sessions.
+`mesh` is a tmux wrapper for local coding-agent swarms.
 
-It lets one coding agent talk to another through real terminal panes. For example, you can run Claude Code as the lead, spin up Codex workers beside it, and have them coordinate in the same tmux workspace while you watch and step in at any time.
+The simplest way to understand it is this: `mesh` lets one coding agent talk to another through real terminal panes. For example, you can run Claude Code as the lead, open Codex workers beside it, and have Claude send work to Codex without hiding anything in the background.
 
-In plain terms: `mesh` helps one human and multiple coding agents work on the same problem in parallel without hiding the work in the background. The human stays in control, every agent stays visible, and the lead agent gets a small set of commands for reading, messaging, and coordinating the rest of the swarm.
+That same workflow scales beyond two agents. You can use one lead agent and many workers in the same tmux workspace, keep every session visible, and let the human watch, interrupt, or type in any pane at any time. `mesh` is built for people who want multiple coding agents working on the same problem, but still want the work to stay understandable and under human control.
 
 ## What It Does
 

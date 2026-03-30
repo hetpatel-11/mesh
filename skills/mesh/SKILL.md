@@ -1,6 +1,6 @@
 ---
 name: mesh
-description: Coordinate tmux-backed coding-agent swarms with mesh. Use when Codex, Claude Code, or another coding agent needs to create or rebuild a tmux workspace, launch Codex workers, read sibling panes, send prompts across panes, show a live mesh session to the human, inspect sibling context or repo changes, or recover from blocked Codex tmux access with mesh-codex or mesh-codex-open.
+description: Let Claude Code, Codex, and other terminal coding agents communicate through real tmux panes. Use when one agent needs to start or coordinate other agents, read sibling panes, send prompts across sessions, show the live workspace to the human, inspect shared repo context, or recover from blocked Codex tmux access with mesh-codex or mesh-codex-open.
 ---
 
 # mesh
