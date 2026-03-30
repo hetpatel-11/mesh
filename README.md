@@ -15,6 +15,7 @@ The goal is simple local agent coordination without relying on brittle tmux musc
 - installs a managed tmux config without blowing away the whole user config
 - exposes easy no-prefix tmux bindings for panes, movement, resize, and titles
 - provides a shell bridge for listing panes, reading output, sending prompts, naming panes, and spawning workers
+- gives any pane a grouped sibling-context snapshot with `mesh context`
 - adds a safety check so blind writes require either a recent read or an explicit `--force`
 
 ## Install
@@ -61,6 +62,18 @@ Read a pane before writing:
 
 ```bash
 mesh read codex --lines 80
+```
+
+Pull a grouped snapshot of the other panes in the same session:
+
+```bash
+mesh context lead --lines 25
+```
+
+Workers can use the same command to stay aware of sibling agents:
+
+```bash
+mesh context codex-01 --lines 20
 ```
 
 Send a message and press enter:

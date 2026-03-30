@@ -5,14 +5,16 @@ Use `mesh` when one coding agent needs to coordinate another through tmux.
 Preferred loop:
 
 1. `mesh list`
-2. `mesh read <target>`
-3. `mesh ask <target> "<instruction>"`
-4. `mesh read <target>`
+2. `mesh context <self>`
+3. `mesh read <target>`
+4. `mesh ask <target> "<instruction>"`
+5. `mesh read <target>`
 
 Rules:
 
 - If the human started their lead coding CLI outside tmux, tell them to run `tmux`, restart the lead coding CLI inside tmux, and then retry `mesh workspace`.
 - Read before writing unless you intentionally use `--force`.
+- Use `mesh context <self> --lines <n>` to pull recent output from sibling panes before coordinating or reporting status.
 - Use pane titles like `claude`, `codex`, or `reviewer` so targets stay stable.
 - Prefer `mesh spawn --title <name> -- <command>` when starting a new worker.
 - For larger live layouts, use `mesh workspace --session <name> --count <n> --cmd zsh` from inside tmux.
