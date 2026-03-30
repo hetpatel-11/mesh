@@ -53,6 +53,18 @@ tmux
 
 If you start Claude Code, Codex, or another coding CLI outside tmux, `mesh workspace` will try to open the new workspace in a visible Terminal window on macOS. That gets the panes on screen, but your current lead is still outside tmux. For the best lead-preserving behavior, start tmux first and launch the lead inside it.
 
+## Codex Note
+
+Some Codex environments can run shell commands locally but still block tmux socket creation or connection inside the Codex tool runner. When that happens, `mesh` cannot create a real tmux-backed workspace from inside that Codex session.
+
+That is a Codex sandbox limitation, not a `mesh` protocol failure. The practical workarounds are:
+
+- launch Codex workers from a normal tmux-backed shell with `mesh-codex`
+- use `mesh-codex-open` on macOS to open the Codex mesh in Terminal.app outside the blocked sandbox
+- use Claude Code or another lead agent with real tmux access to steer the rest of the swarm
+
+So yes: Claude Code can act as the lead and coordinate Codex workers, as long as Claude is running in an environment that can access tmux normally.
+
 ## Bridge Commands
 
 List panes:
