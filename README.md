@@ -1,14 +1,19 @@
 # mesh
 
-`mesh` is a tmux wrapper for local coding-agent swarms.
+`mesh` is a tmux wrapper for multi-agent coding sessions.
 
-It keeps the human in control, keeps every worker visible in real terminals, and gives the lead agent a small control surface for reading, messaging, and coordinating sibling panes.
+It lets one coding agent talk to another through real terminal panes. For example, you can run Claude Code as the lead, spin up Codex workers beside it, and have them coordinate in the same tmux workspace while you watch and step in at any time.
+
+In plain terms: `mesh` helps one human and multiple coding agents work on the same problem in parallel without hiding the work in the background. The human stays in control, every agent stays visible, and the lead agent gets a small set of commands for reading, messaging, and coordinating the rest of the swarm.
 
 ## What It Does
 
+- lets Claude Code, Codex, and other terminal-based coding agents communicate through tmux-backed panes
+- creates shared workspaces where one lead agent can coordinate multiple worker agents
+- keeps every agent visible in real terminals so the human can watch, interrupt, and type directly into any pane
 - installs a managed tmux config without blowing away the whole user config
 - exposes easy no-prefix tmux bindings for panes, movement, resize, and titles
-- provides a shell bridge for listing panes, reading output, sending prompts, naming panes, and spawning workers
+- provides a shell bridge for listing panes, reading output, sending prompts, naming panes, showing live sessions, and spawning workers
 - gives any pane a grouped sibling-context snapshot with `mesh context`
 - keeps clean snapshot logs so agent state can be inspected after the fact
 - adds a safety check so blind writes require either a recent read or an explicit `--force`
