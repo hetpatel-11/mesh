@@ -56,6 +56,14 @@
   ],
   "rewrites": [
     {
+      "source": "/mesh",
+      "destination": "https://github.com/hetpatel-11/mesh"
+    },
+    {
+      "source": "/mesh/",
+      "destination": "https://github.com/hetpatel-11/mesh"
+    },
+    {
       "source": "/mesh/install.sh",
       "destination": "/install.sh"
     },
