@@ -27,12 +27,6 @@ If you want a coding agent to learn the mesh workflow, install the skill right a
 npx skills add hetpatel-11/mesh --skill mesh
 ```
 
-Or target specific agents:
-
-```bash
-npx skills add hetpatel-11/mesh --skill mesh -a claude-code -a codex
-```
-
 If you prefer cloning the repo first:
 
 ```bash
